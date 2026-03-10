@@ -10,7 +10,15 @@ export type UIComponentType =
   | 'Footer'
   | 'Spacer'
   | 'Divider'
-  | 'FlatList';
+  | 'FlatList'
+  | 'Tabs'
+  | 'Accordion'
+  | 'Carousel'
+  | 'Chart'
+  | 'WebView'
+  | 'MapView'
+  | 'FormField'
+  | 'Badge';
 
 export interface UIComponent {
   id: string;
@@ -25,10 +33,43 @@ export interface AppScreen {
   components: UIComponent[];
 }
 
+export interface ProjectTheme {
+  primaryColor: string;
+  secondaryColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  textColor: string;
+  borderRadius: number;
+  mode: 'light' | 'dark' | 'auto';
+}
+
+export const DEFAULT_THEME: ProjectTheme = {
+  primaryColor: '#7C3AED',
+  secondaryColor: '#06B6D4',
+  backgroundColor: '#FFFFFF',
+  surfaceColor: '#F4F4F8',
+  textColor: '#111128',
+  borderRadius: 12,
+  mode: 'auto',
+};
+
+export interface DataSource {
+  id: string;
+  name: string;
+  type: 'rest' | 'json';
+  url: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers: Record<string, string>;
+  body: string;
+  bindToComponent?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
   screens: AppScreen[];
+  theme?: ProjectTheme;
+  dataSources?: DataSource[];
   createdAt: number;
   updatedAt: number;
 }
@@ -38,7 +79,9 @@ export type PropertyControl =
   | { kind: 'number'; label: string; key: string; min?: number; max?: number; step?: number }
   | { kind: 'color'; label: string; key: string }
   | { kind: 'select'; label: string; key: string; options: { label: string; value: string }[] }
-  | { kind: 'toggle'; label: string; key: string };
+  | { kind: 'toggle'; label: string; key: string }
+  | { kind: 'screenSelect'; label: string; key: string }
+  | { kind: 'section'; label: string };
 
 export interface ComponentDefinition {
   type: UIComponentType;

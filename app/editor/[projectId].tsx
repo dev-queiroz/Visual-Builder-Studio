@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StyleSheet,
   useColorScheme,
   Platform,
-  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -22,6 +21,8 @@ import ComponentPalette from '@/components/editor/ComponentPalette';
 import PropertiesPanel from '@/components/editor/PropertiesPanel';
 import PreviewModal from '@/components/editor/PreviewModal';
 import CodeModal from '@/components/editor/CodeModal';
+import ThemeEditor from '@/components/editor/ThemeEditor';
+import IntegrationsPanel from '@/components/editor/IntegrationsPanel';
 import { AppColors } from '@/constants/colors';
 
 export default function EditorScreen() {
@@ -47,10 +48,21 @@ export default function EditorScreen() {
     moveComponentDown,
     updateComponentProp,
     duplicateComponent,
+    updateTheme,
+    applyThemeToAll,
+    addDataSource,
+    updateDataSource,
+    removeDataSource,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useEditorStore();
 
   const [showPreview, setShowPreview] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const [showTheme, setShowTheme] = useState(false);
+  const [showIntegrations, setShowIntegrations] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const activeScreen = project?.screens.find((s) => s.id === activeScreenId) ?? null;
@@ -59,9 +71,7 @@ export default function EditorScreen() {
   useEffect(() => {
     loadProjects().then((projects) => {
       const found = projects.find((p) => p.id === projectId);
-      if (found) {
-        setProject(found);
-      }
+      if (found) setProject(found);
       setLoaded(true);
     });
   }, [projectId]);
@@ -87,48 +97,57 @@ export default function EditorScreen() {
   }
 
   const topPadding = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const undoEnabled = canUndo();
+  const redoEnabled = canRedo();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Top Bar */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingTop: topPadding + 8,
-            backgroundColor: theme.surface,
-            borderBottomColor: theme.border,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => {
-            Haptics.selectionAsync();
-            router.back();
-          }}
-          style={styles.backBtn}
-        >
+      <View style={[styles.topBar, { paddingTop: topPadding + 8, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => { Haptics.selectionAsync(); router.back(); }} style={styles.iconBtn}>
           <MaterialIcons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
+
         <Text style={[styles.projectName, { color: theme.text }]} numberOfLines={1}>
           {project.name}
         </Text>
+
+        {/* Undo/Redo */}
+        <TouchableOpacity
+          onPress={() => { if (undoEnabled) { Haptics.selectionAsync(); undo(); } }}
+          style={[styles.iconBtn, !undoEnabled && styles.disabled]}
+        >
+          <MaterialIcons name="undo" size={20} color={undoEnabled ? theme.text : theme.textTertiary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => { if (redoEnabled) { Haptics.selectionAsync(); redo(); } }}
+          style={[styles.iconBtn, !redoEnabled && styles.disabled]}
+        >
+          <MaterialIcons name="redo" size={20} color={redoEnabled ? theme.text : theme.textTertiary} />
+        </TouchableOpacity>
+
         <View style={styles.topActions}>
           <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowPreview(true);
-            }}
-            style={[styles.topBtn, { backgroundColor: AppColors.cyan + '18' }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTheme(true); }}
+            style={[styles.topBtn, { backgroundColor: '#F59E0B18' }]}
           >
-            <MaterialIcons name="play-arrow" size={18} color={AppColors.cyan} />
-            <Text style={[styles.topBtnText, { color: AppColors.cyan }]}>Preview</Text>
+            <MaterialIcons name="palette" size={16} color="#F59E0B" />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowCode(true);
-            }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowIntegrations(true); }}
+            style={[styles.topBtn, { backgroundColor: AppColors.cyan + '18' }]}
+          >
+            <MaterialIcons name="cloud" size={16} color={AppColors.cyan} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPreview(true); }}
+            style={[styles.topBtn, { backgroundColor: '#10B98118' }]}
+          >
+            <MaterialIcons name="play-arrow" size={18} color="#10B981" />
+            <Text style={[styles.topBtnText, { color: '#10B981' }]}>Preview</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowCode(true); }}
             style={[styles.topBtn, { backgroundColor: AppColors.primary + '18' }]}
           >
             <Feather name="code" size={16} color={AppColors.primary} />
@@ -153,9 +172,7 @@ export default function EditorScreen() {
         contentContainerStyle={styles.canvasContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={() => {
-          if (selectedComponentId) setSelectedComponent(null);
-        }}
+        onScrollBeginDrag={() => { if (selectedComponentId) setSelectedComponent(null); }}
       >
         {activeScreen?.components.length === 0 ? (
           <View style={styles.emptyCanvas}>
@@ -173,9 +190,7 @@ export default function EditorScreen() {
               key={comp.id}
               component={comp}
               isSelected={comp.id === selectedComponentId}
-              onSelect={() =>
-                setSelectedComponent(comp.id === selectedComponentId ? null : comp.id)
-              }
+              onSelect={() => setSelectedComponent(comp.id === selectedComponentId ? null : comp.id)}
               onMoveUp={() => moveComponentUp(comp.id)}
               onMoveDown={() => moveComponentDown(comp.id)}
               onDelete={() => removeComponent(comp.id)}
@@ -188,104 +203,88 @@ export default function EditorScreen() {
         <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* Bottom Panel: Properties or Palette */}
+      {/* Bottom Panel */}
       {selectedComponent ? (
         <PropertiesPanel
           component={selectedComponent}
           onUpdateProp={(key, value) => updateComponentProp(selectedComponent.id, key, value)}
           onClose={() => setSelectedComponent(null)}
+          projectScreens={project.screens}
         />
       ) : (
-        <ComponentPalette
-          onAddComponent={(type: UIComponentType) => addComponent(type)}
-        />
+        <ComponentPalette onAddComponent={(type: UIComponentType) => addComponent(type)} />
       )}
 
-      {/* Bottom safe area */}
       <View style={{ height: insets.bottom + (Platform.OS === 'web' ? 34 : 0), backgroundColor: theme.surface }} />
 
-      <PreviewModal
-        visible={showPreview}
-        screen={activeScreen}
-        onClose={() => setShowPreview(false)}
+      <PreviewModal visible={showPreview} screen={activeScreen} onClose={() => setShowPreview(false)} />
+      <CodeModal visible={showCode} project={project} onClose={() => setShowCode(false)} />
+
+      <ThemeEditor
+        visible={showTheme}
+        theme={project.theme ?? {
+          primaryColor: '#7C3AED',
+          secondaryColor: '#06B6D4',
+          backgroundColor: '#FFFFFF',
+          surfaceColor: '#F4F4F8',
+          textColor: '#111128',
+          borderRadius: 12,
+          mode: 'auto',
+        }}
+        onClose={() => setShowTheme(false)}
+        onChange={(t) => updateTheme(t)}
+        onApplyToAll={() => { applyThemeToAll(); setShowTheme(false); }}
       />
-      <CodeModal
-        visible={showCode}
-        project={project}
-        onClose={() => setShowCode(false)}
+
+      <IntegrationsPanel
+        visible={showIntegrations}
+        dataSources={project.dataSources ?? []}
+        onClose={() => setShowIntegrations(false)}
+        onAdd={addDataSource}
+        onRemove={removeDataSource}
+        onUpdate={updateDataSource}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingBottom: 10,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
     borderBottomWidth: 1,
-    gap: 10,
+    gap: 4,
   },
-  backBtn: {
+  iconBtn: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
   },
+  disabled: { opacity: 0.4 },
   projectName: {
     flex: 1,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
   },
-  topActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  topActions: { flexDirection: 'row', gap: 6 },
   topBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
+    gap: 4,
+    paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 10,
   },
-  topBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  canvasContent: {
-    paddingVertical: 12,
-    minHeight: 300,
-  },
-  emptyCanvas: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    gap: 12,
-  },
-  emptyCanvasIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  emptyDesc: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
+  topBtnText: { fontSize: 13, fontWeight: '700' },
+  canvasContent: { paddingVertical: 12, minHeight: 300 },
+  emptyCanvas: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
+  emptyCanvasIcon: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: 20, fontWeight: '700' },
+  emptyDesc: { fontSize: 14, textAlign: 'center' },
 });

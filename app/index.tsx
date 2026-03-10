@@ -21,6 +21,7 @@ import { loadProjects, deleteProject, saveProject } from '@/utils/storage';
 import { createNewProject } from '@/store/editorStore';
 import { Project } from '@/types';
 import ProjectCard from '@/components/dashboard/ProjectCard';
+import TemplateGallery from '@/components/dashboard/TemplateGallery';
 import { AppColors } from '@/constants/colors';
 
 export default function DashboardScreen() {
@@ -33,6 +34,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [showTemplates, setShowTemplates] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -42,6 +44,13 @@ export default function DashboardScreen() {
       });
     }, [])
   );
+
+  const handleTemplateSelect = async (project: Project) => {
+    await saveProject(project);
+    setProjects((prev) => [project, ...prev]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.push({ pathname: '/editor/[projectId]', params: { projectId: project.id } });
+  };
 
   const handleCreate = async () => {
     const name = newName.trim() || 'My App';
@@ -102,6 +111,18 @@ export default function DashboardScreen() {
             <Text style={[styles.logoSub, { color: theme.textSecondary }]}>Visual App Builder</Text>
           </View>
         </View>
+        <TouchableOpacity
+          testID="templates-btn"
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowTemplates(true);
+          }}
+          style={[styles.templatesBtn, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}
+          activeOpacity={0.85}
+        >
+          <MaterialIcons name="grid-view" size={16} color={theme.textSecondary} />
+          <Text style={{ color: theme.textSecondary, fontWeight: '600', fontSize: 13 }}>Templates</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -200,6 +221,12 @@ export default function DashboardScreen() {
           ))}
         </ScrollView>
       )}
+
+      <TemplateGallery
+        visible={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        onSelectTemplate={handleTemplateSelect}
+      />
 
       <Modal visible={creating} transparent animationType="slide" onRequestClose={() => setCreating(false)}>
         <TouchableOpacity
@@ -300,6 +327,15 @@ const styles = StyleSheet.create({
   logoSub: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  templatesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
   },
   newBtn: {
     borderRadius: 14,

@@ -1,26 +1,29 @@
 import { create } from 'zustand';
-import { Project, AppScreen, UIComponent } from '@/types';
+import { Project, AppScreen, UIComponent, ProjectTheme, DEFAULT_THEME, DataSource } from '@/types';
 import { getDefaultProps } from '@/utils/componentDefaults';
 import { saveProject } from '@/utils/storage';
-import * as Crypto from 'expo-crypto';
+
+const MAX_HISTORY = 30;
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
 }
 
 function createDefaultScreen(name: string): AppScreen {
-  return {
-    id: genId(),
-    name,
-    backgroundColor: '#FFFFFF',
-    components: [],
-  };
+  return { id: genId(), name, backgroundColor: '#FFFFFF', components: [] };
+}
+
+function snapshotProject(project: Project | null): Project | null {
+  if (!project) return null;
+  return JSON.parse(JSON.stringify(project));
 }
 
 export interface EditorState {
   project: Project | null;
   activeScreenId: string | null;
   selectedComponentId: string | null;
+  history: Project[];
+  future: Project[];
 
   setProject: (project: Project) => void;
   setActiveScreen: (id: string) => void;
@@ -38,207 +41,219 @@ export interface EditorState {
   updateComponentProp: (id: string, key: string, value: any) => void;
   duplicateComponent: (id: string) => void;
 
-  saveToStorage: () => Promise<void>;
+  updateTheme: (theme: Partial<ProjectTheme>) => void;
+  applyThemeToAll: () => void;
 
-  get activeScreen(): AppScreen | null;
-  get selectedComponent(): UIComponent | null;
+  addDataSource: (ds: Omit<DataSource, 'id'>) => void;
+  updateDataSource: (id: string, ds: Partial<DataSource>) => void;
+  removeDataSource: (id: string) => void;
+
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+
+  saveToStorage: () => Promise<void>;
+}
+
+function pushHistoryMutation(
+  state: EditorState,
+  mutate: (s: EditorState) => Partial<EditorState>
+): Partial<EditorState> {
+  const snapshot = snapshotProject(state.project);
+  const history = snapshot
+    ? [...state.history.slice(-(MAX_HISTORY - 1)), snapshot]
+    : state.history;
+  return { ...mutate(state), history, future: [] };
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   project: null,
   activeScreenId: null,
   selectedComponentId: null,
-
-  get activeScreen() {
-    const { project, activeScreenId } = get();
-    if (!project || !activeScreenId) return null;
-    return project.screens.find((s) => s.id === activeScreenId) ?? null;
-  },
-
-  get selectedComponent() {
-    const state = get();
-    const screen = state.activeScreen;
-    if (!screen || !state.selectedComponentId) return null;
-    return screen.components.find((c) => c.id === state.selectedComponentId) ?? null;
-  },
+  history: [],
+  future: [],
 
   setProject: (project) => {
-    set({
-      project,
-      activeScreenId: project.screens[0]?.id ?? null,
-      selectedComponentId: null,
-    });
+    set({ project, activeScreenId: project.screens[0]?.id ?? null, selectedComponentId: null, history: [], future: [] });
   },
 
   setActiveScreen: (id) => set({ activeScreenId: id, selectedComponentId: null }),
   setSelectedComponent: (id) => set({ selectedComponentId: id }),
 
   addScreen: () => {
-    set((state) => {
-      if (!state.project) return state;
-      const screens = state.project.screens;
-      const newScreen = createDefaultScreen(`Screen ${screens.length + 1}`);
-      const updated: Project = {
-        ...state.project,
-        screens: [...screens, newScreen],
-        updatedAt: Date.now(),
-      };
-      return { project: updated, activeScreenId: newScreen.id, selectedComponentId: null };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project) return s;
+        const newScreen = createDefaultScreen(`Screen ${s.project.screens.length + 1}`);
+        return {
+          project: { ...s.project, screens: [...s.project.screens, newScreen], updatedAt: Date.now() },
+          activeScreenId: newScreen.id,
+          selectedComponentId: null,
+        };
+      })
+    );
     get().saveToStorage();
   },
 
   renameScreen: (id, name) => {
-    set((state) => {
-      if (!state.project) return state;
-      return {
-        project: {
-          ...state.project,
-          screens: state.project.screens.map((s) => (s.id === id ? { ...s, name } : s)),
-          updatedAt: Date.now(),
-        },
-      };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project) return s;
+        return {
+          project: {
+            ...s.project,
+            screens: s.project.screens.map((sc) => (sc.id === id ? { ...sc, name } : sc)),
+            updatedAt: Date.now(),
+          },
+        };
+      })
+    );
     get().saveToStorage();
   },
 
   deleteScreen: (id) => {
-    set((state) => {
-      if (!state.project || state.project.screens.length <= 1) return state;
-      const screens = state.project.screens.filter((s) => s.id !== id);
-      const newActiveId =
-        state.activeScreenId === id ? screens[0]?.id ?? null : state.activeScreenId;
-      return {
-        project: { ...state.project, screens, updatedAt: Date.now() },
-        activeScreenId: newActiveId,
-        selectedComponentId: null,
-      };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project || s.project.screens.length <= 1) return s;
+        const screens = s.project.screens.filter((sc) => sc.id !== id);
+        return {
+          project: { ...s.project, screens, updatedAt: Date.now() },
+          activeScreenId: s.activeScreenId === id ? screens[0]?.id ?? null : s.activeScreenId,
+          selectedComponentId: null,
+        };
+      })
+    );
     get().saveToStorage();
   },
 
   setScreenBackground: (id, color) => {
-    set((state) => {
-      if (!state.project) return state;
-      return {
-        project: {
-          ...state.project,
-          screens: state.project.screens.map((s) =>
-            s.id === id ? { ...s, backgroundColor: color } : s
-          ),
-          updatedAt: Date.now(),
-        },
-      };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project) return s;
+        return {
+          project: {
+            ...s.project,
+            screens: s.project.screens.map((sc) => (sc.id === id ? { ...sc, backgroundColor: color } : sc)),
+            updatedAt: Date.now(),
+          },
+        };
+      })
+    );
     get().saveToStorage();
   },
 
   addComponent: (type) => {
-    set((state) => {
-      if (!state.project || !state.activeScreenId) return state;
-      const newComp: UIComponent = {
-        id: genId(),
-        type,
-        props: getDefaultProps(type),
-      };
-      return {
-        project: {
-          ...state.project,
-          screens: state.project.screens.map((s) =>
-            s.id === state.activeScreenId
-              ? { ...s, components: [...s.components, newComp] }
-              : s
-          ),
-          updatedAt: Date.now(),
-        },
-        selectedComponentId: newComp.id,
-      };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project || !s.activeScreenId) return s;
+        const newComp: UIComponent = { id: genId(), type, props: getDefaultProps(type) };
+        return {
+          project: {
+            ...s.project,
+            screens: s.project.screens.map((sc) =>
+              sc.id === s.activeScreenId
+                ? { ...sc, components: [...sc.components, newComp] }
+                : sc
+            ),
+            updatedAt: Date.now(),
+          },
+          selectedComponentId: newComp.id,
+        };
+      })
+    );
     get().saveToStorage();
   },
 
   removeComponent: (id) => {
-    set((state) => {
-      if (!state.project || !state.activeScreenId) return state;
-      return {
-        project: {
-          ...state.project,
-          screens: state.project.screens.map((s) =>
-            s.id === state.activeScreenId
-              ? { ...s, components: s.components.filter((c) => c.id !== id) }
-              : s
-          ),
-          updatedAt: Date.now(),
-        },
-        selectedComponentId:
-          state.selectedComponentId === id ? null : state.selectedComponentId,
-      };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project || !s.activeScreenId) return s;
+        return {
+          project: {
+            ...s.project,
+            screens: s.project.screens.map((sc) =>
+              sc.id === s.activeScreenId
+                ? { ...sc, components: sc.components.filter((c) => c.id !== id) }
+                : sc
+            ),
+            updatedAt: Date.now(),
+          },
+          selectedComponentId: s.selectedComponentId === id ? null : s.selectedComponentId,
+        };
+      })
+    );
     get().saveToStorage();
   },
 
   moveComponentUp: (id) => {
-    set((state) => {
-      if (!state.project || !state.activeScreenId) return state;
-      return {
-        project: {
-          ...state.project,
-          screens: state.project.screens.map((s) => {
-            if (s.id !== state.activeScreenId) return s;
-            const idx = s.components.findIndex((c) => c.id === id);
-            if (idx <= 0) return s;
-            const comps = [...s.components];
-            [comps[idx - 1], comps[idx]] = [comps[idx], comps[idx - 1]];
-            return { ...s, components: comps };
-          }),
-          updatedAt: Date.now(),
-        },
-      };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project || !s.activeScreenId) return s;
+        return {
+          project: {
+            ...s.project,
+            screens: s.project.screens.map((sc) => {
+              if (sc.id !== s.activeScreenId) return sc;
+              const idx = sc.components.findIndex((c) => c.id === id);
+              if (idx <= 0) return sc;
+              const comps = [...sc.components];
+              [comps[idx - 1], comps[idx]] = [comps[idx], comps[idx - 1]];
+              return { ...sc, components: comps };
+            }),
+            updatedAt: Date.now(),
+          },
+        };
+      })
+    );
     get().saveToStorage();
   },
 
   moveComponentDown: (id) => {
-    set((state) => {
-      if (!state.project || !state.activeScreenId) return state;
-      return {
-        project: {
-          ...state.project,
-          screens: state.project.screens.map((s) => {
-            if (s.id !== state.activeScreenId) return s;
-            const idx = s.components.findIndex((c) => c.id === id);
-            if (idx < 0 || idx >= s.components.length - 1) return s;
-            const comps = [...s.components];
-            [comps[idx], comps[idx + 1]] = [comps[idx + 1], comps[idx]];
-            return { ...s, components: comps };
-          }),
-          updatedAt: Date.now(),
-        },
-      };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project || !s.activeScreenId) return s;
+        return {
+          project: {
+            ...s.project,
+            screens: s.project.screens.map((sc) => {
+              if (sc.id !== s.activeScreenId) return sc;
+              const idx = sc.components.findIndex((c) => c.id === id);
+              if (idx < 0 || idx >= sc.components.length - 1) return sc;
+              const comps = [...sc.components];
+              [comps[idx], comps[idx + 1]] = [comps[idx + 1], comps[idx]];
+              return { ...sc, components: comps };
+            }),
+            updatedAt: Date.now(),
+          },
+        };
+      })
+    );
     get().saveToStorage();
   },
 
   duplicateComponent: (id) => {
-    set((state) => {
-      if (!state.project || !state.activeScreenId) return state;
-      return {
-        project: {
-          ...state.project,
-          screens: state.project.screens.map((s) => {
-            if (s.id !== state.activeScreenId) return s;
-            const idx = s.components.findIndex((c) => c.id === id);
-            if (idx < 0) return s;
-            const orig = s.components[idx];
-            const dupe: UIComponent = { ...orig, id: genId(), props: { ...orig.props } };
-            const comps = [...s.components];
-            comps.splice(idx + 1, 0, dupe);
-            return { ...s, components: comps };
-          }),
-          updatedAt: Date.now(),
-        },
-      };
-    });
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project || !s.activeScreenId) return s;
+        return {
+          project: {
+            ...s.project,
+            screens: s.project.screens.map((sc) => {
+              if (sc.id !== s.activeScreenId) return sc;
+              const idx = sc.components.findIndex((c) => c.id === id);
+              if (idx < 0) return sc;
+              const orig = sc.components[idx];
+              const dupe: UIComponent = { ...orig, id: genId(), props: { ...orig.props } };
+              const comps = [...sc.components];
+              comps.splice(idx + 1, 0, dupe);
+              return { ...sc, components: comps };
+            }),
+            updatedAt: Date.now(),
+          },
+        };
+      })
+    );
     get().saveToStorage();
   },
 
@@ -248,15 +263,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         project: {
           ...state.project,
-          screens: state.project.screens.map((s) =>
-            s.id === state.activeScreenId
+          screens: state.project.screens.map((sc) =>
+            sc.id === state.activeScreenId
               ? {
-                  ...s,
-                  components: s.components.map((c) =>
+                  ...sc,
+                  components: sc.components.map((c) =>
                     c.id === id ? { ...c, props: { ...c.props, [key]: value } } : c
                   ),
                 }
-              : s
+              : sc
           ),
           updatedAt: Date.now(),
         },
@@ -265,20 +280,138 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
+  updateTheme: (theme) => {
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project) return s;
+        return {
+          project: {
+            ...s.project,
+            theme: { ...(s.project.theme ?? DEFAULT_THEME), ...theme },
+            updatedAt: Date.now(),
+          },
+        };
+      })
+    );
+    get().saveToStorage();
+  },
+
+  applyThemeToAll: () => {
+    set((state) =>
+      pushHistoryMutation(state, (s) => {
+        if (!s.project) return s;
+        const theme = s.project.theme ?? DEFAULT_THEME;
+        const screens = s.project.screens.map((sc) => ({
+          ...sc,
+          backgroundColor: theme.backgroundColor,
+          components: sc.components.map((c) => {
+            const props = { ...c.props };
+            if (c.type === 'Header' || c.type === 'Button') {
+              props.backgroundColor = theme.primaryColor;
+            }
+            if (c.type === 'Card') {
+              props.backgroundColor = theme.surfaceColor;
+              props.borderRadius = theme.borderRadius;
+            }
+            if (c.type === 'Text') {
+              props.color = theme.textColor;
+            }
+            return { ...c, props };
+          }),
+        }));
+        return {
+          project: { ...s.project, screens, updatedAt: Date.now() },
+        };
+      })
+    );
+    get().saveToStorage();
+  },
+
+  addDataSource: (ds) => {
+    set((state) => {
+      if (!state.project) return state;
+      const newDs: DataSource = { ...ds, id: genId() };
+      return {
+        project: {
+          ...state.project,
+          dataSources: [...(state.project.dataSources ?? []), newDs],
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  updateDataSource: (id, ds) => {
+    set((state) => {
+      if (!state.project) return state;
+      return {
+        project: {
+          ...state.project,
+          dataSources: (state.project.dataSources ?? []).map((d) =>
+            d.id === id ? { ...d, ...ds } : d
+          ),
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  removeDataSource: (id) => {
+    set((state) => {
+      if (!state.project) return state;
+      return {
+        project: {
+          ...state.project,
+          dataSources: (state.project.dataSources ?? []).filter((d) => d.id !== id),
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  undo: () => {
+    set((state) => {
+      const { history, project } = state;
+      if (history.length === 0) return state;
+      const prev = history[history.length - 1];
+      const newHistory = history.slice(0, -1);
+      const future = project ? [project, ...state.future.slice(0, MAX_HISTORY - 1)] : state.future;
+      return { project: prev, history: newHistory, future };
+    });
+    get().saveToStorage();
+  },
+
+  redo: () => {
+    set((state) => {
+      const { future, project } = state;
+      if (future.length === 0) return state;
+      const next = future[0];
+      const newFuture = future.slice(1);
+      const history = project ? [...state.history.slice(-(MAX_HISTORY - 1)), project] : state.history;
+      return { project: next, history, future: newFuture };
+    });
+    get().saveToStorage();
+  },
+
+  canUndo: () => get().history.length > 0,
+  canRedo: () => get().future.length > 0,
+
   saveToStorage: async () => {
     const { project } = get();
-    if (project) {
-      await saveProject(project);
-    }
+    if (project) await saveProject(project);
   },
 }));
 
 export function createNewProject(name: string): Project {
-  const id = genId();
   return {
-    id,
+    id: genId(),
     name,
-    screens: [createDefaultScreen('Home')],
+    screens: [{ id: genId(), name: 'Home', backgroundColor: '#FFFFFF', components: [] }],
+    theme: { ...DEFAULT_THEME },
+    dataSources: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
