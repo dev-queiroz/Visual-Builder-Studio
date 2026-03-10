@@ -8,13 +8,12 @@ import {
   useColorScheme,
   TextInput,
   Modal,
-  Alert,
   Platform,
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { MaterialIcons, Feather } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { loadProjects, deleteProject, saveProject } from '@/utils/storage';
@@ -59,7 +58,7 @@ export default function DashboardScreen() {
     setProjects((prev) => [project, ...prev]);
     setCreating(false);
     setNewName('');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.push({ pathname: '/editor/[projectId]', params: { projectId: project.id } });
   };
 
@@ -81,7 +80,7 @@ export default function DashboardScreen() {
     };
     await saveProject(dup);
     setProjects((prev) => [dup, ...prev]);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleDelete = async (id: string) => {

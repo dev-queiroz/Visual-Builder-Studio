@@ -15,7 +15,7 @@ export async function exportProjectToFiles(project: Project): Promise<ExportResu
   try {
     const files = generateProjectCode(project);
     const safeName = project.name.replace(/[^a-zA-Z0-9]/g, '_');
-    const baseDir = `${FileSystem.documentDirectory}AppZap/${safeName}/`;
+    const baseDir = `${FileSystem.Directory}AppZap/${safeName}/`;
 
     await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
