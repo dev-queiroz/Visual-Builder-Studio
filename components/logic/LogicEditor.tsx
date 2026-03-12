@@ -13,26 +13,26 @@ import * as Haptics from 'expo-haptics';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LogicBlock } from '@/types';
+import { WorkflowNode } from '@/types';
 import { AppColors } from '@/constants/colors';
 import LogicBlockView from './LogicBlockView';
 
 interface Props {
     visible: boolean;
     onClose: () => void;
-    blocks: LogicBlock[];
-    onAddBlock: (block: Omit<LogicBlock, 'id'>) => void;
-    onUpdateBlock: (id: string, block: Partial<LogicBlock>) => void;
-    onRemoveBlock: (id: string) => void;
+    nodes: WorkflowNode[];
+    onAddNode: (node: Omit<WorkflowNode, 'id'>) => void;
+    onUpdateNode: (id: string, node: Partial<WorkflowNode>) => void;
+    onRemoveNode: (id: string) => void;
 }
 
 export default function LogicEditor({
     visible,
     onClose,
-    blocks,
-    onAddBlock,
-    onUpdateBlock,
-    onRemoveBlock
+    nodes,
+    onAddNode,
+    onUpdateNode,
+    onRemoveNode
 }: Props) {
     const isDark = useColorScheme() === 'dark';
     const theme = isDark ? AppColors.dark : AppColors.light;
@@ -74,10 +74,10 @@ export default function LogicEditor({
         ],
     }));
 
-    const handleAddDefaultEvent = () => {
-        onAddBlock({
-            type: 'event',
-            opcode: 'ON_START',
+    const handleAddDefaultTrigger = () => {
+        onAddNode({
+            type: 'trigger',
+            opcode: 'ON_APP_START',
             inputs: {},
             position: { x: 100, y: 100 },
         });
@@ -92,10 +92,10 @@ export default function LogicEditor({
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                         <MaterialIcons name="arrow-back" size={24} color={theme.text} />
                     </TouchableOpacity>
-                    <Text style={[styles.title, { color: theme.text }]}>Visual Logic</Text>
-                    <TouchableOpacity onPress={handleAddDefaultEvent} style={[styles.addBtn, { backgroundColor: AppColors.primary }]}>
+                    <Text style={[styles.title, { color: theme.text }]}>Workflow Editor</Text>
+                    <TouchableOpacity onPress={handleAddDefaultTrigger} style={[styles.addBtn, { backgroundColor: AppColors.primary }]}>
                         <MaterialIcons name="add" size={20} color="#FFF" />
-                        <Text style={styles.addBtnText}>Block</Text>
+                        <Text style={styles.addBtnText}>Node</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -104,14 +104,14 @@ export default function LogicEditor({
                     <GestureDetector gesture={composedGesture}>
                         <Animated.View style={[{ flex: 1 }, animatedStyle]}>
                             <View style={styles.gridBg} />
-                            {blocks.map((block) => (
+                            {nodes.map((node) => (
                                 <LogicBlockView
-                                    key={block.id}
-                                    block={block}
-                                    isSelected={block.id === selectedBlockId}
+                                    key={node.id}
+                                    node={node}
+                                    isSelected={node.id === selectedBlockId}
                                     onSelect={setSelectedBlockId}
-                                    onUpdateInput={(id, key, val) => onUpdateBlock(id, { inputs: { ...block.inputs, [key]: val } })}
-                                    onDrag={(id, x, y) => onUpdateBlock(id, { position: { x, y } })}
+                                    onUpdateInput={(id, key, val) => onUpdateNode(id, { inputs: { ...node.inputs, [key]: val } })}
+                                    onDrag={(id, x, y) => onUpdateNode(id, { position: { x, y } })}
                                 />
                             ))}
                         </Animated.View>
@@ -121,18 +121,22 @@ export default function LogicEditor({
                 {/* Bottom Toolbar */}
                 <View style={[styles.toolbar, { paddingBottom: insets.bottom + 8, backgroundColor: theme.surface, borderTopColor: theme.border }]}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolbarContent}>
-                        <Category label="Events">
-                            <BlockBtn label="Press" icon="touch-app" color="#EF4444" onPress={() => onAddBlock({ type: 'event', opcode: 'ON_PRESS', inputs: {}, position: { x: 50, y: 50 } })} />
-                            <BlockBtn label="Load" icon="refresh" color="#EF4444" onPress={() => onAddBlock({ type: 'event', opcode: 'ON_LOAD', inputs: {}, position: { x: 50, y: 50 } })} />
+                        <Category label="Triggers">
+                            <BlockBtn label="On Start" icon="bolt" color="#EF4444" onPress={() => onAddNode({ type: 'trigger', opcode: 'ON_APP_START', inputs: {}, position: { x: 50, y: 50 } })} />
+                            <BlockBtn label="On Event" icon="touch-app" color="#EF4444" onPress={() => onAddNode({ type: 'trigger', opcode: 'ON_EVENT', inputs: { componentId: '', eventName: '' }, position: { x: 50, y: 50 } })} />
                         </Category>
                         <Category label="Actions">
-                            <BlockBtn label="Alert" icon="notifications" color="#3B82F6" onPress={() => onAddBlock({ type: 'action', opcode: 'SHOW_ALERT', inputs: { title: 'Hello', message: 'World' }, position: { x: 50, y: 50 } })} />
-                            <BlockBtn label="Nav" icon="near-me" color="#3B82F6" onPress={() => onAddBlock({ type: 'action', opcode: 'NAVIGATE', inputs: { screenId: '' }, position: { x: 50, y: 50 } })} />
-                            <BlockBtn label="Set" icon="save" color="#3B82F6" onPress={() => onAddBlock({ type: 'action', opcode: 'SET_VARIABLE', inputs: { variableName: '', value: '' }, position: { x: 50, y: 50 } })} />
-                            <BlockBtn label="Log" icon="terminal" color="#3B82F6" onPress={() => onAddBlock({ type: 'action', opcode: 'CONSOLE_LOG', inputs: { message: '' }, position: { x: 50, y: 50 } })} />
+                            <BlockBtn label="Alert" icon="notifications" color="#3B82F6" onPress={() => onAddNode({ type: 'action', opcode: 'SHOW_ALERT', inputs: { title: 'Hello', message: 'World' }, position: { x: 50, y: 50 } })} />
+                            <BlockBtn label="Nav" icon="near-me" color="#3B82F6" onPress={() => onAddNode({ type: 'action', opcode: 'NAVIGATE', inputs: { screenId: '' }, position: { x: 50, y: 50 } })} />
+                            <BlockBtn label="Set Var" icon="save" color="#3B82F6" onPress={() => onAddNode({ type: 'action', opcode: 'SET_VARIABLE', inputs: { variableName: '', value: '' }, position: { x: 50, y: 50 } })} />
+                            <BlockBtn label="Log" icon="terminal" color="#3B82F6" onPress={() => onAddNode({ type: 'action', opcode: 'CONSOLE_LOG', inputs: { message: '' }, position: { x: 50, y: 50 } })} />
                         </Category>
                         <Category label="Control">
-                            <BlockBtn label="If/Else" icon="call-split" color="#F59E0B" onPress={() => onAddBlock({ type: 'control', opcode: 'IF_ELSE', inputs: { condition: '', trueBlockId: '', falseBlockId: '' }, position: { x: 50, y: 50 } })} />
+                            <BlockBtn label="If" icon="call-split" color="#F59E0B" onPress={() => onAddNode({ type: 'control', opcode: 'IF', inputs: { condition: '' }, position: { x: 50, y: 50 } })} />
+                            <BlockBtn label="Switch" icon="swap-horiz" color="#F59E0B" onPress={() => onAddNode({ type: 'control', opcode: 'SWITCH', inputs: { value: '' }, position: { x: 50, y: 50 } })} />
+                        </Category>
+                        <Category label="Data">
+                            <BlockBtn label="Get API" icon="cloud-download" color="#10B981" onPress={() => onAddNode({ type: 'data', opcode: 'GET_API', inputs: { url: '', method: 'GET' }, position: { x: 50, y: 50 } })} />
                         </Category>
                     </ScrollView>
                 </View>

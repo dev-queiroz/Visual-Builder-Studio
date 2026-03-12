@@ -118,10 +118,10 @@ function SliderRow({ label, value, min, max, step, onChange, isDark }: SliderRow
 interface Props {
   component: UIComponent;
   onUpdateProp: (key: string, value: any) => void;
-  onUpdateEvent?: (eventName: string, logicBlockId: string) => void;
+  onUpdateEvent?: (eventName: string, workflowNodeId: string) => void;
   onClose: () => void;
   projectScreens?: AppScreen[];
-  availableLogicBlocks?: LogicBlock[];
+  availableWorkflowNodes?: WorkflowNode[];
 }
 
 export default function PropertiesPanel({
@@ -130,7 +130,7 @@ export default function PropertiesPanel({
   onUpdateEvent,
   onClose,
   projectScreens = [],
-  availableLogicBlocks = []
+  availableWorkflowNodes = []
 }: Props) {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? AppColors.dark : AppColors.light;
@@ -281,7 +281,7 @@ export default function PropertiesPanel({
         ) : (
           <EventsList
             component={component}
-            availableLogicBlocks={availableLogicBlocks}
+            availableWorkflowNodes={availableWorkflowNodes}
             onUpdateEvent={onUpdateEvent}
             isDark={isDark}
           />
@@ -340,11 +340,11 @@ const styles = StyleSheet.create({
   eventLabel: { fontSize: 14, fontWeight: '700' },
 });
 
-import { LogicBlock } from '@/types';
+import { WorkflowNode } from '@/types';
 
-function EventsList({ component, availableLogicBlocks, onUpdateEvent, isDark }: {
+function EventsList({ component, availableWorkflowNodes, onUpdateEvent, isDark }: {
   component: UIComponent;
-  availableLogicBlocks: LogicBlock[];
+  availableWorkflowNodes: WorkflowNode[];
   onUpdateEvent?: (e: string, b: string) => void;
   isDark: boolean;
 }) {
@@ -366,7 +366,7 @@ function EventsList({ component, availableLogicBlocks, onUpdateEvent, isDark }: 
     <View style={{ gap: 12 }}>
       {events.map(ev => {
         const boundBlockId = component.events?.[ev];
-        const boundBlock = availableLogicBlocks.find(b => b.id === boundBlockId);
+        const boundBlock = availableWorkflowNodes.find(b => b.id === boundBlockId);
 
         return (
           <View key={ev} style={[styles.eventRow, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}>
@@ -383,7 +383,7 @@ function EventsList({ component, availableLogicBlocks, onUpdateEvent, isDark }: 
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                {availableLogicBlocks.filter(b => b.type === 'event').map(block => (
+                {availableWorkflowNodes.filter(b => b.type === 'trigger').map(block => (
                   <TouchableOpacity
                     key={block.id}
                     onPress={() => onUpdateEvent?.(ev, block.id)}
@@ -401,8 +401,8 @@ function EventsList({ component, availableLogicBlocks, onUpdateEvent, isDark }: 
                     </Text>
                   </TouchableOpacity>
                 ))}
-                {availableLogicBlocks.filter(b => b.type === 'event').length === 0 && (
-                  <Text style={{ fontSize: 12, color: theme.textTertiary }}>No event blocks found. Create one in Logic Editor.</Text>
+                {availableWorkflowNodes.filter(b => b.type === 'trigger').length === 0 && (
+                  <Text style={{ fontSize: 12, color: theme.textTertiary }}>No trigger nodes found. Create one in Workflow Editor.</Text>
                 )}
               </View>
             </ScrollView>

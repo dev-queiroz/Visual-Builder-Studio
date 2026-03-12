@@ -1,4 +1,4 @@
-import { Project, LogicBlock, Variable, UIComponent } from '@/types';
+import { Project, WorkflowNode, DataVariable, UIComponent } from '@/types';
 import { Alert } from 'react-native';
 
 export class LogicEngine {
@@ -24,52 +24,52 @@ export class LogicEngine {
      * Finds the bound logic flow and executes its actions.
      */
     dispatchComponentEvent(component: UIComponent, eventName: string) {
-        const blockId = component.events?.[eventName];
-        if (!blockId) return;
+        const nodeId = component.events?.[eventName];
+        if (!nodeId) return;
 
-        const startBlock = this.project.logicBlocks?.find(b => b.id === blockId);
-        if (!startBlock) {
-            console.warn(`[LogicEngine] Block ${blockId} not found for event ${eventName}`);
+        const startNode = this.project.workflowNodes?.find(b => b.id === nodeId);
+        if (!startNode) {
+            console.warn(`[LogicEngine] Node ${nodeId} not found for event ${eventName}`);
             return;
         }
 
-        this.executeFlow(startBlock);
+        this.executeFlow(startNode);
     }
 
     /**
      * Executes a logic flow starting from a specific block.
      * If the block is an EVENT, it skips to the next block.
      */
-    async executeFlow(startBlock: LogicBlock) {
-        if (!this.validateBlock(startBlock)) return;
+    async executeFlow(startNode: WorkflowNode) {
+        if (!this.validateNode(startNode)) return;
 
-        let currentBlock: LogicBlock | undefined = startBlock;
+        let currentNode: WorkflowNode | undefined = startNode;
 
-        // If it's an event block, we don't "execute" it, we just start from the next one
-        if (currentBlock.type === 'event') {
-            if (currentBlock.nextBlockId) {
-                currentBlock = this.project.logicBlocks?.find(b => b.id === currentBlock?.nextBlockId);
+        // If it's a trigger node, we don't "execute" it, we just start from the next one
+        if (currentNode.type === 'trigger') {
+            if (currentNode.nextBlockId) {
+                currentNode = this.project.workflowNodes?.find(b => b.id === currentNode?.nextBlockId);
             } else {
-                return; // Event with no actions attached
+                return; // Trigger with no actions attached
             }
         }
 
-        while (currentBlock) {
-            if (!this.validateBlock(currentBlock)) break;
+        while (currentNode) {
+            if (!this.validateNode(currentNode)) break;
 
-            // Execute the block and get the potential next block ID (for branching like IF)
-            const nextOverride = await this.runBlock(currentBlock);
+            // Execute the node and get the potential next node ID (for branching like IF)
+            const nextOverride = await this.runNode(currentNode);
 
-            const nextId = nextOverride || currentBlock.nextBlockId;
+            const nextId = nextOverride || currentNode.nextBlockId;
             if (!nextId) break;
 
-            currentBlock = this.project.logicBlocks?.find(b => b.id === nextId);
+            currentNode = this.project.workflowNodes?.find(b => b.id === nextId);
         }
     }
 
-    private validateBlock(block: LogicBlock): boolean {
-        if (!block.opcode) {
-            console.error('[LogicEngine] Block missing opcode:', block.id);
+    private validateNode(node: WorkflowNode): boolean {
+        if (!node.opcode) {
+            console.error('[LogicEngine] Node missing opcode:', node.id);
             return false;
         }
         return true;
@@ -92,22 +92,22 @@ export class LogicEngine {
      * Returns a string ID if the flow should jump to a specific block (e.g. IF branch), 
      * otherwise returns undefined to continue normal chain.
      */
-    private async runBlock(block: LogicBlock): Promise<string | undefined> {
-        // Skip events if they ever end up here
-        if (block.type === 'event') return undefined;
+    private async runNode(node: WorkflowNode): Promise<string | undefined> {
+        // Skip triggers if they ever end up here
+        if (node.type === 'trigger') return undefined;
 
-        console.log(`[LogicEngine] Running ${block.opcode}`, block.inputs);
+        console.log(`[LogicEngine] Running ${node.opcode}`, node.inputs);
 
-        switch (block.opcode) {
+        switch (node.opcode) {
             case 'SHOW_ALERT': {
-                const title = this.resolveValue(block.inputs.title) || 'Alert';
-                const message = this.resolveValue(block.inputs.message) || '';
+                const title = this.resolveValue(node.inputs.title) || 'Alert';
+                const message = this.resolveValue(node.inputs.message) || '';
                 Alert.alert(title, message);
                 break;
             }
 
             case 'NAVIGATE': {
-                const screenId = block.inputs.screenId;
+                const screenId = node.inputs.screenId;
                 if (screenId && this.navigateTo) {
                     this.navigateTo(screenId);
                 }
@@ -115,40 +115,59 @@ export class LogicEngine {
             }
 
             case 'SET_VARIABLE': {
-                const varName = block.inputs.variableName;
-                const value = this.resolveValue(block.inputs.value);
+                const varName = node.inputs.variableName;
+                const value = this.resolveValue(node.inputs.value);
                 if (varName) {
                     this.setRuntimeVariable(varName, value);
                 }
                 break;
             }
 
+            case 'GET_API': {
+                const url = this.resolveValue(node.inputs.url);
+                const method = node.inputs.method || 'GET';
+                const variableName = node.inputs.variableName;
+
+                if (url) {
+                    try {
+                        const res = await fetch(url, { method });
+                        const data = await res.json();
+                        if (variableName) {
+                            this.setRuntimeVariable(variableName, data);
+                        }
+                    } catch (e) {
+                        console.error('[LogicEngine] API Error:', e);
+                    }
+                }
+                break;
+            }
+
             case 'CONSOLE_LOG':
             case 'LOG': {
-                const msg = this.resolveValue(block.inputs.message);
+                const msg = this.resolveValue(node.inputs.message);
                 console.log('[AppZap Log]:', msg);
                 break;
             }
 
             case 'IF':
             case 'IF_ELSE': {
-                const condition = this.resolveValue(block.inputs.condition);
+                const condition = this.resolveValue(node.inputs.condition);
                 // Basic truthy check, can be expanded to real comparisons later
                 const isTrue = !!condition && condition !== 'false' && condition !== '0';
 
                 return isTrue
-                    ? block.inputs.trueBlockId
-                    : block.inputs.falseBlockId;
+                    ? node.inputs.trueBlockId
+                    : node.inputs.falseBlockId;
             }
 
             case 'DELAY': {
-                const ms = parseInt(this.resolveValue(block.inputs.duration)) || 1000;
+                const ms = parseInt(this.resolveValue(node.inputs.duration)) || 1000;
                 await new Promise(resolve => setTimeout(resolve, ms));
                 break;
             }
 
             default:
-                console.warn(`[LogicEngine] Unsupported opcode: ${block.opcode}`);
+                console.warn(`[LogicEngine] Unsupported opcode: ${node.opcode}`);
         }
 
         return undefined;

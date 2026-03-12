@@ -13,16 +13,16 @@ import {
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DataSource } from '@/types';
+import { Endpoint } from '@/types';
 import { AppColors } from '@/constants/colors';
 
 interface Props {
   visible: boolean;
-  dataSources: DataSource[];
+  endpoints: Endpoint[];
   onClose: () => void;
-  onAdd: (ds: Omit<DataSource, 'id'>) => void;
+  onAdd: (ds: Omit<Endpoint, 'id'>) => void;
   onRemove: (id: string) => void;
-  onUpdate: (id: string, ds: Partial<DataSource>) => void;
+  onUpdate: (id: string, ds: Partial<Endpoint>) => void;
 }
 
 const METHOD_COLORS: Record<string, string> = {
@@ -30,12 +30,13 @@ const METHOD_COLORS: Record<string, string> = {
   POST: '#F59E0B',
   PUT: '#3B82F6',
   DELETE: '#EF4444',
+  PATCH: '#8B5CF6',
 };
 
-const DEFAULT_DS: Omit<DataSource, 'id'> = {
+const DEFAULT_DS: Omit<Endpoint, 'id'> = {
   name: '',
   type: 'rest',
-  url: 'https://jsonplaceholder.typicode.com/posts',
+  url: 'https://placeholder.api.com/v1',
   method: 'GET',
   headers: {},
   body: '',
@@ -43,7 +44,7 @@ const DEFAULT_DS: Omit<DataSource, 'id'> = {
 
 export default function IntegrationsPanel({
   visible,
-  dataSources,
+  endpoints,
   onClose,
   onAdd,
   onRemove,
@@ -53,7 +54,7 @@ export default function IntegrationsPanel({
   const theme = isDark ? AppColors.dark : AppColors.light;
   const insets = useSafeAreaInsets();
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState<Omit<DataSource, 'id'>>(DEFAULT_DS);
+  const [form, setForm] = useState<Omit<Endpoint, 'id'>>(DEFAULT_DS);
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
 
@@ -68,7 +69,7 @@ export default function IntegrationsPanel({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const handleTest = async (ds: DataSource) => {
+  const handleTest = async (ds: Endpoint) => {
     setTesting(ds.id);
     setTestResult(null);
     try {
@@ -103,7 +104,7 @@ export default function IntegrationsPanel({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {dataSources.length === 0 && !adding && (
+            {endpoints.length === 0 && !adding && (
               <View style={styles.emptyWrap}>
                 <MaterialIcons name="cloud-off" size={48} color={theme.textTertiary} />
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>No Connections Yet</Text>
@@ -113,7 +114,7 @@ export default function IntegrationsPanel({
               </View>
             )}
 
-            {dataSources.map((ds) => (
+            {endpoints.map((ds) => (
               <View key={ds.id} style={[styles.dsCard, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}>
                 <View style={styles.dsHeader}>
                   <View style={[styles.methodTag, { backgroundColor: METHOD_COLORS[ds.method] + '20' }]}>
@@ -168,7 +169,7 @@ export default function IntegrationsPanel({
 
                 <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Method</Text>
                 <View style={styles.methodRow}>
-                  {(['GET', 'POST', 'PUT', 'DELETE'] as const).map((m) => (
+                  {(['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] as const).map((m) => (
                     <TouchableOpacity
                       key={m}
                       onPress={() => setForm((f) => ({ ...f, method: m }))}

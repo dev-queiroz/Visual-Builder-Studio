@@ -10,6 +10,7 @@ import { MaterialIcons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { UIComponent } from '@/types';
 import { AppColors } from '@/constants/colors';
+import { BlurView } from 'expo-blur';
 
 interface Props {
   component: UIComponent;
@@ -231,15 +232,24 @@ export default function CanvasItem({ component, isSelected, onSelect, onMoveUp, 
   return (
     <TouchableOpacity
       onPress={() => { Haptics.selectionAsync(); onSelect(); }}
-      activeOpacity={0.85}
+      activeOpacity={0.9}
       testID={`canvas-item-${component.id}`}
-      style={[styles.wrapper, { borderColor: isSelected ? AppColors.primary : 'transparent', backgroundColor: isSelected ? AppColors.primary + '06' : 'transparent' }]}
+      style={[
+        styles.wrapper,
+        {
+          borderColor: isSelected ? AppColors.primary : theme.border,
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+          borderRadius: 16,
+          borderWidth: isSelected ? 2 : 1,
+        }
+      ]}
     >
       <View style={styles.preview}>
         <PreviewContent component={component} />
       </View>
       {isSelected && (
         <View style={[styles.toolbar, { backgroundColor: AppColors.primary }]}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} tint={isDark ? 'dark' : 'light'} />
           <View style={styles.typeChip}>
             <Text style={styles.typeLabel}>{component.type}</Text>
           </View>
@@ -264,12 +274,12 @@ export default function CanvasItem({ component, isSelected, onSelect, onMoveUp, 
 }
 
 const styles = StyleSheet.create({
-  wrapper: { borderRadius: 10, borderWidth: 2, marginHorizontal: 12, marginVertical: 4, overflow: 'hidden' },
-  preview: { padding: 8 },
-  toolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 5, gap: 4 },
+  wrapper: { marginHorizontal: 16, marginVertical: 8, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
+  preview: { padding: 12 },
+  toolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, gap: 4, overflow: 'hidden' },
   typeChip: { flex: 1 },
-  typeLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '600' },
-  toolBtns: { flexDirection: 'row', gap: 2 },
-  toolBtn: { width: 30, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  typeLabel: { color: '#FFF', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  toolBtns: { flexDirection: 'row', gap: 4 },
+  toolBtn: { width: 32, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' },
   toolBtnDisabled: { opacity: 0.3 },
 });

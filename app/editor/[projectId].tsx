@@ -25,7 +25,7 @@ import {
 } from 'react-native-gesture-handler';
 import { loadProjects } from '@/utils/storage';
 import { useEditorStore } from '@/store/editorStore';
-import { UIComponentType, Variable, LogicBlock } from '@/types';
+import { UIComponentType, DataVariable, WorkflowNode } from '@/types';
 import ScreenTabs from '@/components/editor/ScreenTabs';
 import CanvasItem from '@/components/editor/CanvasItem';
 import ComponentPalette from '@/components/editor/ComponentPalette';
@@ -63,9 +63,9 @@ export default function EditorScreen() {
     duplicateComponent,
     updateTheme,
     applyThemeToAll,
-    addDataSource,
-    updateDataSource,
-    removeDataSource,
+    addEndpoint,
+    updateEndpoint,
+    removeEndpoint,
     undo,
     redo,
     canUndo,
@@ -73,9 +73,9 @@ export default function EditorScreen() {
     addVariable,
     updateVariable,
     removeVariable,
-    addLogicBlock,
-    updateLogicBlock,
-    removeLogicBlock,
+    addWorkflowNode,
+    updateWorkflowNode,
+    removeWorkflowNode,
   } = useEditorStore();
 
   const scale = useSharedValue(1);
@@ -296,7 +296,7 @@ export default function EditorScreen() {
             onUpdateEvent={(ev, blockId) => updateComponentEvent(selectedComponent.id, ev, blockId)}
             onClose={() => setSelectedComponent(null)}
             projectScreens={project.screens}
-            availableLogicBlocks={project.logicBlocks ?? []}
+            availableWorkflowNodes={project.workflowNodes ?? []}
           />
         ) : null
       }
@@ -335,20 +335,20 @@ export default function EditorScreen() {
 
       <IntegrationsPanel
         visible={showIntegrations}
-        dataSources={project.dataSources ?? []}
+        endpoints={project.endpoints ?? []}
         onClose={() => setShowIntegrations(false)}
-        onAdd={(ds: any) => addDataSource(ds)}
-        onRemove={removeDataSource}
-        onUpdate={updateDataSource}
+        onAdd={(ds: any) => addEndpoint(ds)}
+        onRemove={removeEndpoint}
+        onUpdate={updateEndpoint}
       />
 
       <LogicEditor
         visible={showLogic}
         onClose={() => setShowLogic(false)}
-        blocks={project.logicBlocks ?? []}
-        onAddBlock={addLogicBlock}
-        onUpdateBlock={updateLogicBlock}
-        onRemoveBlock={removeLogicBlock}
+        nodes={project.workflowNodes ?? []}
+        onAddNode={addWorkflowNode}
+        onUpdateNode={updateWorkflowNode}
+        onRemoveNode={removeWorkflowNode}
       />
     </View>
   );

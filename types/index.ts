@@ -24,7 +24,7 @@ export interface UIComponent {
   id: string;
   type: UIComponentType;
   props: Record<string, any>;
-  events?: Record<string, string>; // eventName -> logicBlockId
+  events?: Record<string, string>; // eventName -> workflowNodeId
 }
 
 export interface AppScreen {
@@ -54,27 +54,36 @@ export const DEFAULT_THEME: ProjectTheme = {
   mode: 'auto',
 };
 
-export interface DataSource {
+export interface Endpoint {
   id: string;
   name: string;
   type: 'rest' | 'json';
   url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   headers: Record<string, string>;
   body: string;
   bindToComponent?: string;
+  collectionId?: string;
 }
 
-export interface LogicBlock {
+export interface APICollection {
   id: string;
-  type: 'event' | 'action' | 'control' | 'data' | 'operator';
+  name: string;
+  endpoints: Endpoint[];
+}
+
+export interface WorkflowNode {
+  id: string;
+  type: 'trigger' | 'action' | 'control' | 'data';
   opcode: string;
   inputs: Record<string, any>;
-  nextBlockId?: string;
+  nextBlockId?: string; // For backward compatibility with existing engine
+  outputs?: string[]; // IDs of next nodes for future edge-based logic
   position: { x: number; y: number };
+  metadata?: Record<string, any>;
 }
 
-export interface Variable {
+export interface DataVariable {
   id: string;
   name: string;
   type: 'string' | 'number' | 'boolean' | 'list' | 'object';
@@ -88,9 +97,10 @@ export interface Project {
   name: string;
   screens: AppScreen[];
   theme?: ProjectTheme;
-  dataSources?: DataSource[];
-  logicBlocks?: LogicBlock[];
-  variables?: Variable[];
+  endpoints?: Endpoint[];
+  workflowNodes?: WorkflowNode[];
+  variables?: DataVariable[];
+  collections?: APICollection[];
   createdAt: number;
   updatedAt: number;
 }

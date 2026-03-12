@@ -1,34 +1,34 @@
 import React from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
-import { LogicBlock } from '@/types';
+import { WorkflowNode } from '@/types';
 import { AppColors } from '@/constants/colors';
 import { View, Text, StyleSheet, TouchableOpacity, useColorScheme, TextInput } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 
 interface Props {
-    block: LogicBlock;
+    node: WorkflowNode;
     onSelect: (id: string) => void;
     onUpdateInput?: (id: string, key: string, value: any) => void;
     onDrag?: (id: string, x: number, y: number) => void;
     isSelected?: boolean;
 }
 
-export default function LogicBlockView({ block, onSelect, onUpdateInput, onDrag, isSelected }: Props) {
+export default function LogicBlockView({ node, onSelect, onUpdateInput, onDrag, isSelected }: Props) {
     const isDark = useColorScheme() === 'dark';
     const theme = isDark ? AppColors.dark : AppColors.light;
 
-    const dragX = useSharedValue(block.position.x);
-    const dragY = useSharedValue(block.position.y);
+    const dragX = useSharedValue(node.position.x);
+    const dragY = useSharedValue(node.position.y);
 
     const pan = Gesture.Pan()
         .onUpdate((e) => {
-            dragX.value = block.position.x + e.translationX;
-            dragY.value = block.position.y + e.translationY;
+            dragX.value = node.position.x + e.translationX;
+            dragY.value = node.position.y + e.translationY;
         })
         .onEnd(() => {
             if (onDrag) {
-                runOnJS(onDrag)(block.id, dragX.value, dragY.value);
+                runOnJS(onDrag)(node.id, dragX.value, dragY.value);
             }
         });
 
@@ -38,31 +38,33 @@ export default function LogicBlockView({ block, onSelect, onUpdateInput, onDrag,
         transform: [{ scale: isSelected ? 1.02 : 1 }],
     }));
 
-    const getBlockIcon = () => {
-        switch (block.opcode) {
+    const getNodeIcon = () => {
+        switch (node.opcode) {
             case 'SHOW_ALERT': return 'notifications';
             case 'NAVIGATE': return 'near-me';
             case 'SET_VARIABLE': return 'save';
-            case 'IF_ELSE': return 'call-split';
+            case 'IF_ELSE':
+            case 'IF': return 'call-split';
+            case 'SWITCH': return 'swap-horiz';
             case 'CONSOLE_LOG': return 'terminal';
-            case 'ON_PRESS': return 'touch-app';
-            case 'ON_LOAD': return 'refresh';
-            default: return block.type === 'event' ? 'bolt' : 'code';
+            case 'ON_EVENT': return 'touch-app';
+            case 'ON_APP_START': return 'bolt';
+            case 'GET_API': return 'cloud-download';
+            default: return node.type === 'trigger' ? 'bolt' : 'code';
         }
     };
 
-    const getBlockColor = () => {
-        switch (block.type) {
-            case 'event': return '#EF4444'; // Red
+    const getNodeColor = () => {
+        switch (node.type) {
+            case 'trigger': return '#EF4444'; // Red
             case 'action': return '#3B82F6'; // Blue
             case 'control': return '#F59E0B'; // Amber
             case 'data': return '#10B981'; // Green
-            case 'operator': return '#7C3AED'; // Violet
             default: return '#6B7280';
         }
     };
 
-    const blockColor = getBlockColor();
+    const nodeColor = getNodeColor();
 
     return (
         <GestureDetector gesture={pan}>
@@ -71,7 +73,7 @@ export default function LogicBlockView({ block, onSelect, onUpdateInput, onDrag,
                     styles.container,
                     animatedStyle,
                     {
-                        backgroundColor: blockColor,
+                        backgroundColor: nodeColor,
                         borderColor: isSelected ? '#FFF' : 'rgba(255,255,255,0.3)',
                         borderWidth: isSelected ? 3 : 1,
                         zIndex: isSelected ? 1000 : 1,
@@ -79,38 +81,38 @@ export default function LogicBlockView({ block, onSelect, onUpdateInput, onDrag,
                 ]}
             >
                 <TouchableOpacity
-                    onPress={() => onSelect(block.id)}
+                    onPress={() => onSelect(node.id)}
                     activeOpacity={0.9}
                     style={{ flex: 1 }}
                 >
                     <View style={styles.header}>
-                        <MaterialIcons name={getBlockIcon() as any} size={16} color="#FFF" />
-                        <Text style={styles.opcode}>{block.opcode.replace('_', ' ')}</Text>
+                        <MaterialIcons name={getNodeIcon() as any} size={16} color="#FFF" />
+                        <Text style={styles.opcode}>{node.opcode.replace(/_/g, ' ')}</Text>
                     </View>
                     <View style={styles.body}>
-                        {Object.keys(block.inputs).map((key) => (
+                        {Object.keys(node.inputs).map((key) => (
                             <View key={key} style={styles.inputRow}>
                                 <View style={styles.socket} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.inputLabel}>{key}</Text>
                                     {isSelected ? (
                                         <TextInput
-                                            value={String(block.inputs[key] ?? '')}
-                                            onChangeText={(t) => onUpdateInput?.(block.id, key, t)}
+                                            value={String(node.inputs[key] ?? '')}
+                                            onChangeText={(t) => onUpdateInput?.(node.id, key, t)}
                                             style={styles.inputField}
                                             placeholder="Value..."
                                             placeholderTextColor="rgba(255,255,255,0.5)"
                                         />
                                     ) : (
                                         <Text style={styles.inputValue} numberOfLines={1}>
-                                            {String(block.inputs[key] ?? '—')}
+                                            {String(node.inputs[key] ?? '—')}
                                         </Text>
                                     )}
                                 </View>
                             </View>
                         ))}
                     </View>
-                    {block.type !== 'event' && <View style={styles.topPlug} />}
+                    {node.type !== 'trigger' && <View style={styles.topPlug} />}
                     <View style={styles.bottomPlug} />
                 </TouchableOpacity>
             </Animated.View>

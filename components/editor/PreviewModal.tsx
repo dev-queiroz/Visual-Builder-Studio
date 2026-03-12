@@ -16,6 +16,7 @@ import { AppColors } from '@/constants/colors';
 import { LogicEngine } from '@/engines/logic/logicEngine';
 import { useEditorStore } from '@/store/editorStore';
 import { resolveVariables } from '@/utils/variableResolver';
+import { BlurView } from 'expo-blur';
 
 function PreviewComponent({
   component,
@@ -273,44 +274,53 @@ export default function PreviewModal({ visible, project, initialScreenId, onClos
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={[styles.overlay, { paddingTop: insets.top }]}>
         <View style={styles.header}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="dark" />
           <View style={styles.headerLeft}>
-            <View style={[styles.deviceDot, { backgroundColor: '#EF4444' }]} />
-            <View style={[styles.deviceDot, { backgroundColor: '#F59E0B' }]} />
-            <View style={[styles.deviceDot, { backgroundColor: '#10B981' }]} />
+            <View style={[styles.deviceDot, { backgroundColor: '#FF5F56' }]} />
+            <View style={[styles.deviceDot, { backgroundColor: '#FFBD2E' }]} />
+            <View style={[styles.deviceDot, { backgroundColor: '#27C93F' }]} />
           </View>
-          <Text style={styles.headerTitle}>Preview — {activeScreen?.name ?? 'Screen'}</Text>
+          <Text style={styles.headerTitle}>Live Preview</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Feather name="x" size={20} color="#FFF" />
+            <View style={styles.closeIconBg}>
+              <Feather name="x" size={18} color="#FFF" />
+            </View>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.deviceFrame}>
-          <View style={styles.deviceNotch} />
-          <View style={[styles.deviceScreen, { backgroundColor: activeScreen?.backgroundColor ?? '#FFFFFF' }]}>
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {!activeScreen || activeScreen.components.length === 0 ? (
-                <View style={styles.emptyPreview}>
-                  <MaterialIcons name="phonelink" size={48} color="#D1D5DB" />
-                  <Text style={styles.emptyText}>No components yet</Text>
-                </View>
-              ) : (
-                <View style={{ padding: 12, gap: 12 }}>
-                  {activeScreen.components.map((comp) => (
-                    <PreviewComponent
-                      key={comp.id}
-                      component={comp}
-                      runtimeVariables={runtimeVariables}
-                      onEvent={(ev) => handleComponentEvent(comp, ev)}
-                    />
-                  ))}
-                </View>
-              )}
-            </ScrollView>
+        <View style={styles.previewContainer}>
+          <View style={styles.deviceFrame}>
+            <View style={styles.deviceSideBtn} />
+            <View style={[styles.deviceSideBtn, { top: 100 }]} />
+            <View style={[styles.deviceSideBtn, { top: 140 }]} />
+
+            <View style={styles.deviceNotch} />
+            <View style={[styles.deviceScreen, { backgroundColor: activeScreen?.backgroundColor ?? '#FFFFFF' }]}>
+              <ScrollView
+                contentContainerStyle={{ flexGrow: 1 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {!activeScreen || activeScreen.components.length === 0 ? (
+                  <View style={styles.emptyPreview}>
+                    <MaterialIcons name="phonelink" size={48} color="#D1D5DB" />
+                    <Text style={styles.emptyText}>No components yet</Text>
+                  </View>
+                ) : (
+                  <View style={{ padding: 12, gap: 12 }}>
+                    {activeScreen.components.map((comp) => (
+                      <PreviewComponent
+                        key={comp.id}
+                        component={comp}
+                        runtimeVariables={runtimeVariables}
+                        onEvent={(ev) => handleComponentEvent(comp, ev)}
+                      />
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+            <View style={styles.deviceHome} />
           </View>
-          <View style={styles.deviceHome} />
         </View>
       </View>
     </Modal>
@@ -320,7 +330,7 @@ export default function PreviewModal({ visible, project, initialScreenId, onClos
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: '#0D0D1A',
+    backgroundColor: '#020617', // Match AppColors.dark.background
     alignItems: 'center',
   },
   header: {
@@ -328,51 +338,80 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
+    overflow: 'hidden',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   headerLeft: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
     flex: 1,
   },
   deviceDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   headerTitle: {
-    color: '#F0F0FF',
-    fontSize: 14,
-    fontWeight: '700',
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '800',
     flex: 2,
     textAlign: 'center',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   closeBtn: {
     flex: 1,
     alignItems: 'flex-end',
   },
+  closeIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewContainer: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
   deviceFrame: {
     width: 320,
-    height: 580,
-    borderRadius: 40,
-    backgroundColor: '#1A1A2E',
-    borderWidth: 3,
-    borderColor: '#2A2A46',
+    height: 640,
+    borderRadius: 48,
+    backgroundColor: '#0F172A',
+    borderWidth: 8,
+    borderColor: '#1E293B',
     overflow: 'hidden',
     shadowColor: AppColors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 32,
     elevation: 20,
+    position: 'relative',
+  },
+  deviceSideBtn: {
+    position: 'absolute',
+    left: -10,
+    top: 60,
+    width: 4,
+    height: 30,
+    backgroundColor: '#334155',
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 2,
   },
   deviceNotch: {
-    width: 120,
-    height: 28,
-    backgroundColor: '#0D0D1A',
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    width: 140,
+    height: 32,
+    backgroundColor: '#0F172A',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     alignSelf: 'center',
     position: 'absolute',
     top: 0,
@@ -380,17 +419,17 @@ const styles = StyleSheet.create({
   },
   deviceScreen: {
     flex: 1,
-    marginTop: 28,
     overflow: 'hidden',
   },
   deviceHome: {
     width: 120,
     height: 5,
-    backgroundColor: '#2A2A46',
+    backgroundColor: '#334155',
     borderRadius: 3,
     alignSelf: 'center',
-    marginBottom: 12,
-    marginTop: 8,
+    position: 'absolute',
+    bottom: 8,
+    zIndex: 10,
   },
   emptyPreview: {
     flex: 1,
@@ -400,7 +439,7 @@ const styles = StyleSheet.create({
     paddingTop: 100,
   },
   emptyText: {
-    color: '#D1D5DB',
+    color: '#475569',
     fontSize: 16,
     fontWeight: '600',
   },

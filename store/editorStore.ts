@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Project, AppScreen, UIComponent, ProjectTheme, DEFAULT_THEME, DataSource, Variable, LogicBlock } from '@/types';
+import { Project, AppScreen, UIComponent, ProjectTheme, DEFAULT_THEME, Endpoint, DataVariable, WorkflowNode, APICollection } from '@/types';
 import { getDefaultProps } from '@/utils/componentDefaults';
 import { saveProject } from '@/utils/storage';
 
@@ -39,23 +39,23 @@ export interface EditorState {
   moveComponentUp: (id: string) => void;
   moveComponentDown: (id: string) => void;
   updateComponentProp: (id: string, key: string, value: any) => void;
-  updateComponentEvent: (id: string, eventName: string, logicBlockId: string) => void;
+  updateComponentEvent: (id: string, eventName: string, workflowNodeId: string) => void;
   duplicateComponent: (id: string) => void;
 
   updateTheme: (theme: Partial<ProjectTheme>) => void;
   applyThemeToAll: () => void;
 
-  addDataSource: (ds: DataSource) => void;
-  updateDataSource: (id: string, ds: Partial<DataSource>) => void;
-  removeDataSource: (id: string) => void;
+  addEndpoint: (ds: Endpoint) => void;
+  updateEndpoint: (id: string, ds: Partial<Endpoint>) => void;
+  removeEndpoint: (id: string) => void;
 
-  addVariable: (variable: Omit<Variable, 'id'>) => void;
-  updateVariable: (id: string, variable: Partial<Variable>) => void;
+  addVariable: (variable: Omit<DataVariable, 'id'>) => void;
+  updateVariable: (id: string, variable: Partial<DataVariable>) => void;
   removeVariable: (id: string) => void;
 
-  addLogicBlock: (block: Omit<LogicBlock, 'id'>) => void;
-  updateLogicBlock: (id: string, block: Partial<LogicBlock>) => void;
-  removeLogicBlock: (id: string) => void;
+  addWorkflowNode: (node: Omit<WorkflowNode, 'id'>) => void;
+  updateWorkflowNode: (id: string, node: Partial<WorkflowNode>) => void;
+  removeWorkflowNode: (id: string) => void;
 
   undo: () => void;
   redo: () => void;
@@ -294,19 +294,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  updateComponentEvent: (id, eventName, logicBlockId) => {
-    set((state) => {
+  updateComponentEvent: (id: string, eventName: string, workflowNodeId: string) => {
+    set((state: EditorState) => {
       if (!state.project || !state.activeScreenId) return state;
       return {
         project: {
           ...state.project,
-          screens: state.project.screens.map((sc) =>
+          screens: state.project.screens.map((sc: AppScreen) =>
             sc.id === state.activeScreenId
               ? {
                 ...sc,
-                components: sc.components.map((c) =>
+                components: sc.components.map((c: UIComponent) =>
                   c.id === id
-                    ? { ...c, events: { ...(c.events || {}), [eventName]: logicBlockId } }
+                    ? { ...c, events: { ...(c.events || {}), [eventName]: workflowNodeId } }
                     : c
                 ),
               }
@@ -366,14 +366,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  addDataSource: (ds: Omit<DataSource, 'id'>) => {
+  addEndpoint: (ds: Omit<Endpoint, 'id'>) => {
     set((state) => {
       if (!state.project) return state;
-      const newDs: DataSource = { ...ds, id: genId() };
+      const newDs: Endpoint = { ...ds, id: genId() };
       return {
         project: {
           ...state.project,
-          dataSources: [...(state.project.dataSources ?? []), newDs],
+          endpoints: [...(state.project.endpoints ?? []), newDs],
           updatedAt: Date.now(),
         },
       };
@@ -381,13 +381,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  updateDataSource: (id: string, ds: Partial<DataSource>) => {
+  updateEndpoint: (id: string, ds: Partial<Endpoint>) => {
     set((state) => {
       if (!state.project) return state;
       return {
         project: {
           ...state.project,
-          dataSources: (state.project.dataSources ?? []).map((d) =>
+          endpoints: (state.project.endpoints ?? []).map((d) =>
             d.id === id ? { ...d, ...ds } : d
           ),
           updatedAt: Date.now(),
@@ -397,13 +397,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  removeDataSource: (id: string) => {
+  removeEndpoint: (id: string) => {
     set((state) => {
       if (!state.project) return state;
       return {
         project: {
           ...state.project,
-          dataSources: (state.project.dataSources ?? []).filter((d) => d.id !== id),
+          endpoints: (state.project.endpoints ?? []).filter((d) => d.id !== id),
           updatedAt: Date.now(),
         },
       };
@@ -414,7 +414,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   addVariable: (variable) => {
     set((state) => {
       if (!state.project) return state;
-      const newVar: Variable = { ...variable, id: genId() };
+      const newVar: DataVariable = { ...variable, id: genId() };
       return {
         project: {
           ...state.project,
@@ -456,14 +456,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  addLogicBlock: (block) => {
+  addWorkflowNode: (node) => {
     set((state) => {
       if (!state.project) return state;
-      const newBlock: LogicBlock = { ...block, id: genId() };
+      const newNode: WorkflowNode = { ...node, id: genId() };
       return {
         project: {
           ...state.project,
-          logicBlocks: [...(state.project.logicBlocks ?? []), newBlock],
+          workflowNodes: [...(state.project.workflowNodes ?? []), newNode],
           updatedAt: Date.now(),
         },
       };
@@ -471,14 +471,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  updateLogicBlock: (id, block) => {
+  updateWorkflowNode: (id, node) => {
     set((state) => {
       if (!state.project) return state;
       return {
         project: {
           ...state.project,
-          logicBlocks: (state.project.logicBlocks ?? []).map((b) =>
-            b.id === id ? { ...b, ...block } : b
+          workflowNodes: (state.project.workflowNodes ?? []).map((b) =>
+            b.id === id ? { ...b, ...node } : b
           ),
           updatedAt: Date.now(),
         },
@@ -487,13 +487,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  removeLogicBlock: (id) => {
+  removeWorkflowNode: (id) => {
     set((state) => {
       if (!state.project) return state;
       return {
         project: {
           ...state.project,
-          logicBlocks: (state.project.logicBlocks ?? []).filter((b) => b.id !== id),
+          workflowNodes: (state.project.workflowNodes ?? []).filter((b) => b.id !== id),
           updatedAt: Date.now(),
         },
       };
@@ -554,9 +554,12 @@ export function createNewProject(name: string): Project {
   return {
     id: genId(),
     name,
-    screens: [{ id: genId(), name: 'Home', backgroundColor: '#FFFFFF', components: [] }],
-    theme: { ...DEFAULT_THEME },
-    dataSources: [],
+    screens: [{ id: genId(), name: 'Home', backgroundColor: '#020617', components: [] }],
+    theme: { ...DEFAULT_THEME, mode: 'dark', backgroundColor: '#020617', surfaceColor: 'rgba(15, 23, 42, 0.8)' },
+    endpoints: [],
+    workflowNodes: [],
+    variables: [],
+    collections: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

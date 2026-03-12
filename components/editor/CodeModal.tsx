@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Project } from '@/types';
 import { generateProjectCode, generateFullCodeString } from '@/utils/codeGenerator';
 import { AppColors } from '@/constants/colors';
+import { BlurView } from 'expo-blur';
 
 interface Props {
   visible: boolean;
@@ -53,17 +54,20 @@ export default function CodeModal({ visible, project, onClose }: Props) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) }]}>
-        <View style={[styles.topBar, { backgroundColor: isDark ? '#16162A' : '#1E1E32', borderBottomColor: '#2A2A46' }]}>
+        <View style={[styles.topBar, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)', borderBottomColor: theme.border }]}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} tint={isDark ? 'dark' : 'light'} />
           <View style={styles.topBarLeft}>
-            <View style={[styles.topBarDot, { backgroundColor: '#EF4444' }]} />
-            <View style={[styles.topBarDot, { backgroundColor: '#F59E0B' }]} />
-            <View style={[styles.topBarDot, { backgroundColor: '#10B981' }]} />
+            <View style={[styles.topBarDot, { backgroundColor: '#FF5F56' }]} />
+            <View style={[styles.topBarDot, { backgroundColor: '#FFBD2E' }]} />
+            <View style={[styles.topBarDot, { backgroundColor: '#27C93F' }]} />
           </View>
-          <Text style={styles.topBarTitle}>
-            {project?.name ?? 'Code'} — Generated Code
+          <Text style={[styles.topBarTitle, { color: theme.text }]}>
+            {project?.name ?? 'Code'} — Production Build
           </Text>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Feather name="x" size={18} color="#9090C0" />
+            <View style={styles.closeIconBg}>
+              <Feather name="x" size={18} color={theme.textSecondary} />
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -119,7 +123,7 @@ export default function CodeModal({ visible, project, onClose }: Props) {
           </View>
         </View>
 
-        <View style={[styles.footer, { backgroundColor: '#0D0D1A', borderTopColor: '#2A2A46', paddingBottom: insets.bottom + 8 }]}>
+        <View style={[styles.footer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             onPress={handleCopy}
             style={[styles.actionBtn, { backgroundColor: AppColors.primary }]}
@@ -127,12 +131,12 @@ export default function CodeModal({ visible, project, onClose }: Props) {
           >
             <Feather name={copied ? 'check' : 'copy'} size={16} color="#FFF" />
             <Text style={styles.actionBtnText}>
-              {copied ? 'Copied!' : 'Copy All Files'}
+              {copied ? 'Copied bundle!' : 'Export All Files'}
             </Text>
           </TouchableOpacity>
-          <View style={[styles.infoBadge, { backgroundColor: '#1E1E32' }]}>
-            <MaterialIcons name="info-outline" size={14} color="#5A5A8A" />
-            <Text style={styles.infoText}>Run with: npx expo start</Text>
+          <View style={[styles.infoBadge, { backgroundColor: theme.surfaceSecondary }]}>
+            <MaterialIcons name="terminal" size={14} color={theme.textSecondary} />
+            <Text style={[styles.infoText, { color: theme.textSecondary }]}>npx expo start</Text>
           </View>
         </View>
       </View>
@@ -174,6 +178,14 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 32,
     height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeIconBg: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
