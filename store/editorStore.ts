@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Project, AppScreen, UIComponent, ProjectTheme, DEFAULT_THEME, DataSource } from '@/types';
+import { Project, AppScreen, UIComponent, ProjectTheme, DEFAULT_THEME, DataSource, Variable, LogicBlock } from '@/types';
 import { getDefaultProps } from '@/utils/componentDefaults';
 import { saveProject } from '@/utils/storage';
 
@@ -39,19 +39,33 @@ export interface EditorState {
   moveComponentUp: (id: string) => void;
   moveComponentDown: (id: string) => void;
   updateComponentProp: (id: string, key: string, value: any) => void;
+  updateComponentEvent: (id: string, eventName: string, logicBlockId: string) => void;
   duplicateComponent: (id: string) => void;
 
   updateTheme: (theme: Partial<ProjectTheme>) => void;
   applyThemeToAll: () => void;
 
-  addDataSource: (ds: Omit<DataSource, 'id'>) => void;
+  addDataSource: (ds: DataSource) => void;
   updateDataSource: (id: string, ds: Partial<DataSource>) => void;
   removeDataSource: (id: string) => void;
+
+  addVariable: (variable: Omit<Variable, 'id'>) => void;
+  updateVariable: (id: string, variable: Partial<Variable>) => void;
+  removeVariable: (id: string) => void;
+
+  addLogicBlock: (block: Omit<LogicBlock, 'id'>) => void;
+  updateLogicBlock: (id: string, block: Partial<LogicBlock>) => void;
+  removeLogicBlock: (id: string) => void;
 
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+
+  // Runtime State (for Preview)
+  runtimeVariables: Record<string, any>;
+  setRuntimeVariable: (name: string, value: any) => void;
+  resetRuntimeVariables: () => void;
 
   saveToStorage: () => Promise<void>;
 }
@@ -266,11 +280,36 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           screens: state.project.screens.map((sc) =>
             sc.id === state.activeScreenId
               ? {
-                  ...sc,
-                  components: sc.components.map((c) =>
-                    c.id === id ? { ...c, props: { ...c.props, [key]: value } } : c
-                  ),
-                }
+                ...sc,
+                components: sc.components.map((c) =>
+                  c.id === id ? { ...c, props: { ...c.props, [key]: value } } : c
+                ),
+              }
+              : sc
+          ),
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  updateComponentEvent: (id, eventName, logicBlockId) => {
+    set((state) => {
+      if (!state.project || !state.activeScreenId) return state;
+      return {
+        project: {
+          ...state.project,
+          screens: state.project.screens.map((sc) =>
+            sc.id === state.activeScreenId
+              ? {
+                ...sc,
+                components: sc.components.map((c) =>
+                  c.id === id
+                    ? { ...c, events: { ...(c.events || {}), [eventName]: logicBlockId } }
+                    : c
+                ),
+              }
               : sc
           ),
           updatedAt: Date.now(),
@@ -327,7 +366,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  addDataSource: (ds) => {
+  addDataSource: (ds: Omit<DataSource, 'id'>) => {
     set((state) => {
       if (!state.project) return state;
       const newDs: DataSource = { ...ds, id: genId() };
@@ -342,7 +381,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  updateDataSource: (id, ds) => {
+  updateDataSource: (id: string, ds: Partial<DataSource>) => {
     set((state) => {
       if (!state.project) return state;
       return {
@@ -358,13 +397,103 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToStorage();
   },
 
-  removeDataSource: (id) => {
+  removeDataSource: (id: string) => {
     set((state) => {
       if (!state.project) return state;
       return {
         project: {
           ...state.project,
           dataSources: (state.project.dataSources ?? []).filter((d) => d.id !== id),
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  addVariable: (variable) => {
+    set((state) => {
+      if (!state.project) return state;
+      const newVar: Variable = { ...variable, id: genId() };
+      return {
+        project: {
+          ...state.project,
+          variables: [...(state.project.variables ?? []), newVar],
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  updateVariable: (id, variable) => {
+    set((state) => {
+      if (!state.project) return state;
+      return {
+        project: {
+          ...state.project,
+          variables: (state.project.variables ?? []).map((v) =>
+            v.id === id ? { ...v, ...variable } : v
+          ),
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  removeVariable: (id) => {
+    set((state) => {
+      if (!state.project) return state;
+      return {
+        project: {
+          ...state.project,
+          variables: (state.project.variables ?? []).filter((v) => v.id !== id),
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  addLogicBlock: (block) => {
+    set((state) => {
+      if (!state.project) return state;
+      const newBlock: LogicBlock = { ...block, id: genId() };
+      return {
+        project: {
+          ...state.project,
+          logicBlocks: [...(state.project.logicBlocks ?? []), newBlock],
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  updateLogicBlock: (id, block) => {
+    set((state) => {
+      if (!state.project) return state;
+      return {
+        project: {
+          ...state.project,
+          logicBlocks: (state.project.logicBlocks ?? []).map((b) =>
+            b.id === id ? { ...b, ...block } : b
+          ),
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    get().saveToStorage();
+  },
+
+  removeLogicBlock: (id) => {
+    set((state) => {
+      if (!state.project) return state;
+      return {
+        project: {
+          ...state.project,
+          logicBlocks: (state.project.logicBlocks ?? []).filter((b) => b.id !== id),
           updatedAt: Date.now(),
         },
       };
@@ -398,6 +527,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   canUndo: () => get().history.length > 0,
   canRedo: () => get().future.length > 0,
+
+  runtimeVariables: {},
+  setRuntimeVariable: (name, value) => {
+    set((state) => ({
+      runtimeVariables: { ...state.runtimeVariables, [name]: value },
+    }));
+  },
+  resetRuntimeVariables: () => {
+    const { project } = get();
+    if (!project) return;
+    const initial: Record<string, any> = {};
+    (project.variables ?? []).forEach((v) => {
+      initial[v.name] = v.defaultValue;
+    });
+    set({ runtimeVariables: initial });
+  },
 
   saveToStorage: async () => {
     const { project } = get();

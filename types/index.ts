@@ -24,6 +24,7 @@ export interface UIComponent {
   id: string;
   type: UIComponentType;
   props: Record<string, any>;
+  events?: Record<string, string>; // eventName -> logicBlockId
 }
 
 export interface AppScreen {
@@ -64,12 +65,32 @@ export interface DataSource {
   bindToComponent?: string;
 }
 
+export interface LogicBlock {
+  id: string;
+  type: 'event' | 'action' | 'control' | 'data' | 'operator';
+  opcode: string;
+  inputs: Record<string, any>;
+  nextBlockId?: string;
+  position: { x: number; y: number };
+}
+
+export interface Variable {
+  id: string;
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'list' | 'object';
+  scope: 'global' | 'screen';
+  screenId?: string;
+  defaultValue: any;
+}
+
 export interface Project {
   id: string;
   name: string;
   screens: AppScreen[];
   theme?: ProjectTheme;
   dataSources?: DataSource[];
+  logicBlocks?: LogicBlock[];
+  variables?: Variable[];
   createdAt: number;
   updatedAt: number;
 }

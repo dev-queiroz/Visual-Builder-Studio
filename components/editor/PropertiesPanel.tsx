@@ -101,7 +101,7 @@ function SliderRow({ label, value, min, max, step, onChange, isDark }: SliderRow
         <Text style={[styles.propValue, { color: theme.text }]}>{value}</Text>
       </View>
       <View style={[styles.sliderTrack, { backgroundColor: theme.surfaceTertiary }]}>
-        <View style={[styles.sliderFill, { width: pct, backgroundColor: AppColors.primary }]} />
+        <View style={[styles.sliderFill, { width: pct as any, backgroundColor: AppColors.primary }]} />
         <View style={styles.sliderBtns}>
           <TouchableOpacity onPress={() => onChange(Math.max(min, value - step))} style={[styles.sliderBtn, { backgroundColor: theme.surface }]}>
             <Text style={[styles.sliderBtnText, { color: theme.text }]}>−</Text>
@@ -118,16 +118,27 @@ function SliderRow({ label, value, min, max, step, onChange, isDark }: SliderRow
 interface Props {
   component: UIComponent;
   onUpdateProp: (key: string, value: any) => void;
+  onUpdateEvent?: (eventName: string, logicBlockId: string) => void;
   onClose: () => void;
   projectScreens?: AppScreen[];
+  availableLogicBlocks?: LogicBlock[];
 }
 
-export default function PropertiesPanel({ component, onUpdateProp, onClose, projectScreens = [] }: Props) {
+export default function PropertiesPanel({
+  component,
+  onUpdateProp,
+  onUpdateEvent,
+  onClose,
+  projectScreens = [],
+  availableLogicBlocks = []
+}: Props) {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? AppColors.dark : AppColors.light;
   const def = COMPONENT_MAP[component.type];
+  const [activeTab, setActiveTab] = useState<'props' | 'events'>('props');
   const [colorPickerKey, setColorPickerKey] = useState<string | null>(null);
   const [screenPickerKey, setScreenPickerKey] = useState<string | null>(null);
+  const [eventPickerKey, setEventPickerKey] = useState<string | null>(null);
 
   const controls = (def?.propertyControls ?? []).filter(
     (c): c is PropertyControl => c !== null && typeof c === 'object' && 'kind' in c
@@ -249,20 +260,32 @@ export default function PropertiesPanel({ component, onUpdateProp, onClose, proj
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-      <View style={[styles.topBar, { borderBottomColor: theme.border }]}>
-        <View style={[styles.pill, { backgroundColor: theme.border }]} />
-        <View style={styles.titleRow}>
-          <View style={[styles.typeTag, { backgroundColor: AppColors.primary + '20' }]}>
-            <Text style={[styles.typeName, { color: AppColors.primary }]}>{component.type}</Text>
-          </View>
-          <Text style={[styles.panelTitle, { color: theme.text }]}>Properties</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Feather name="x" size={18} color={theme.textSecondary} />
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.tabs, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity
+          onPress={() => setActiveTab('props')}
+          style={[styles.tab, activeTab === 'props' && { borderBottomColor: AppColors.primary }]}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'props' ? AppColors.primary : theme.textSecondary }]}>Properties</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setActiveTab('events')}
+          style={[styles.tab, activeTab === 'events' && { borderBottomColor: AppColors.primary }]}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'events' ? AppColors.primary : theme.textSecondary }]}>Events</Text>
+        </TouchableOpacity>
       </View>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {controls.map((control, idx) => renderControl(control, idx))}
+        {activeTab === 'props' ? (
+          controls.map((control, idx) => renderControl(control, idx))
+        ) : (
+          <EventsList
+            component={component}
+            availableLogicBlocks={availableLogicBlocks}
+            onUpdateEvent={onUpdateEvent}
+            isDark={isDark}
+          />
+        )}
       </ScrollView>
     </View>
   );
@@ -271,10 +294,13 @@ export default function PropertiesPanel({ component, onUpdateProp, onClose, proj
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
 const styles = StyleSheet.create({
-  container: { borderTopWidth: 1, maxHeight: 340 },
-  topBar: { alignItems: 'center', paddingTop: 8, paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1 },
+  container: { borderTopWidth: 1, maxHeight: 400 },
+  topBar: { alignItems: 'center', paddingTop: 8, paddingHorizontal: 16, borderBottomWidth: 1 },
   pill: { width: 36, height: 4, borderRadius: 2, marginBottom: 8 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', marginBottom: 8 },
+  tabs: { flexDirection: 'row', borderBottomWidth: 1 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabText: { fontSize: 13, fontWeight: '700' },
   typeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   typeName: { fontSize: 12, fontWeight: '700' },
   panelTitle: { fontSize: 15, fontWeight: '700', flex: 1 },
@@ -309,4 +335,80 @@ const styles = StyleSheet.create({
   screenOpt: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
   sectionDivider: { borderTopWidth: 1, paddingTop: 10, marginTop: 4 },
   sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  eventRow: { padding: 12, borderRadius: 10, borderWidth: 1, gap: 8 },
+  eventLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  eventLabel: { fontSize: 14, fontWeight: '700' },
 });
+
+import { LogicBlock } from '@/types';
+
+function EventsList({ component, availableLogicBlocks, onUpdateEvent, isDark }: {
+  component: UIComponent;
+  availableLogicBlocks: LogicBlock[];
+  onUpdateEvent?: (e: string, b: string) => void;
+  isDark: boolean;
+}) {
+  const theme = isDark ? AppColors.dark : AppColors.light;
+
+  const getPossibleEvents = (type: string) => {
+    switch (type) {
+      case 'Button': return ['onPress'];
+      case 'TextInput': return ['onChangeText', 'onFocus', 'onBlur'];
+      case 'View':
+      case 'Card': return ['onLoad', 'onPress'];
+      default: return ['onLoad'];
+    }
+  };
+
+  const events = getPossibleEvents(component.type);
+
+  return (
+    <View style={{ gap: 12 }}>
+      {events.map(ev => {
+        const boundBlockId = component.events?.[ev];
+        const boundBlock = availableLogicBlocks.find(b => b.id === boundBlockId);
+
+        return (
+          <View key={ev} style={[styles.eventRow, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}>
+            <View style={styles.eventLabelRow}>
+              <Text style={[styles.eventLabel, { color: theme.text }]}>{ev}</Text>
+              {boundBlockId ? (
+                <TouchableOpacity onPress={() => onUpdateEvent?.(ev, '')}>
+                  <MaterialIcons name="link-off" size={18} color={AppColors.primary} />
+                </TouchableOpacity>
+              ) : (
+                <MaterialIcons name="link" size={18} color={theme.textTertiary} />
+              )}
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {availableLogicBlocks.filter(b => b.type === 'event').map(block => (
+                  <TouchableOpacity
+                    key={block.id}
+                    onPress={() => onUpdateEvent?.(ev, block.id)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      backgroundColor: boundBlockId === block.id ? AppColors.primary : theme.surface,
+                      borderColor: boundBlockId === block.id ? AppColors.primary : theme.border
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: boundBlockId === block.id ? '#FFF' : theme.text, fontWeight: '600' }}>
+                      {block.opcode}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {availableLogicBlocks.filter(b => b.type === 'event').length === 0 && (
+                  <Text style={{ fontSize: 12, color: theme.textTertiary }}>No event blocks found. Create one in Logic Editor.</Text>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        );
+      })}
+    </View>
+  );
+}

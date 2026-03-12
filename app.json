@@ -41,7 +41,8 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "keepAwake": false
     },
     "extra": {
       "router": {

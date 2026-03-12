@@ -12,9 +12,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  cancelAnimation
+} from 'react-native-reanimated';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView
+} from 'react-native-gesture-handler';
 import { loadProjects } from '@/utils/storage';
 import { useEditorStore } from '@/store/editorStore';
-import { UIComponentType } from '@/types';
+import { UIComponentType, Variable, LogicBlock } from '@/types';
 import ScreenTabs from '@/components/editor/ScreenTabs';
 import CanvasItem from '@/components/editor/CanvasItem';
 import ComponentPalette from '@/components/editor/ComponentPalette';
@@ -23,6 +34,7 @@ import PreviewModal from '@/components/editor/PreviewModal';
 import CodeModal from '@/components/editor/CodeModal';
 import ThemeEditor from '@/components/editor/ThemeEditor';
 import IntegrationsPanel from '@/components/editor/IntegrationsPanel';
+import LogicEditor from '@/components/logic/LogicEditor';
 import { AppColors } from '@/constants/colors';
 
 export default function EditorScreen() {
@@ -47,6 +59,7 @@ export default function EditorScreen() {
     moveComponentUp,
     moveComponentDown,
     updateComponentProp,
+    updateComponentEvent,
     duplicateComponent,
     updateTheme,
     applyThemeToAll,
@@ -57,12 +70,56 @@ export default function EditorScreen() {
     redo,
     canUndo,
     canRedo,
+    addVariable,
+    updateVariable,
+    removeVariable,
+    addLogicBlock,
+    updateLogicBlock,
+    removeLogicBlock,
   } = useEditorStore();
+
+  const scale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedScale = useSharedValue(1);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = savedScale.value * e.scale;
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+    });
+
+  const panGesture = Gesture.Pan()
+    .minPointers(2)
+    .onUpdate((e) => {
+      translateX.value = savedTranslateX.value + e.translationX;
+      translateY.value = savedTranslateY.value + e.translationY;
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
 
   const [showPreview, setShowPreview] = useState(false);
   const [showCode, setShowCode] = useState(false);
   const [showTheme, setShowTheme] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
+  const [showLogic, setShowLogic] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const activeScreen = project?.screens.find((s) => s.id === activeScreenId) ?? null;
@@ -140,6 +197,13 @@ export default function EditorScreen() {
             <MaterialIcons name="cloud" size={16} color={AppColors.cyan} />
           </TouchableOpacity>
           <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowLogic(true); }}
+            style={[styles.topBtn, { backgroundColor: '#7C3AED18' }]}
+          >
+            <MaterialIcons name="account-tree" size={16} color="#7C3AED" />
+            <Text style={[styles.topBtnText, { color: '#7C3AED' }]}>Logic</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPreview(true); }}
             style={[styles.topBtn, { backgroundColor: '#10B98118' }]}
           >
@@ -166,59 +230,92 @@ export default function EditorScreen() {
         onRenameScreen={renameScreen}
       />
 
-      {/* Canvas */}
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={styles.canvasContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={() => { if (selectedComponentId) setSelectedComponent(null); }}
-      >
-        {activeScreen?.components.length === 0 ? (
-          <View style={styles.emptyCanvas}>
-            <View style={[styles.emptyCanvasIcon, { backgroundColor: AppColors.primary + '15' }]}>
-              <MaterialIcons name="add-circle-outline" size={40} color={AppColors.primary} />
+      {/* Canvas Area */}
+      <GestureHandlerRootView style={{ flex: 1, overflow: 'hidden' }}>
+        <GestureDetector gesture={composedGesture}>
+          <Animated.View style={[styles.canvasWrapper, animatedStyle]}>
+            <View
+              style={[
+                styles.canvasContainer,
+                {
+                  backgroundColor: activeScreen?.backgroundColor || theme.background,
+                  minHeight: 600,
+                  width: '100%',
+                },
+              ]}
+              onStartShouldSetResponder={() => true}
+              onResponderRelease={() => {
+                if (selectedComponentId) setSelectedComponent(null);
+              }}
+            >
+              {activeScreen?.components.length === 0 ? (
+                <View style={styles.emptyCanvas}>
+                  <View style={[styles.emptyCanvasIcon, { backgroundColor: AppColors.primary + '15' }]}>
+                    <MaterialIcons name="add-circle-outline" size={40} color={AppColors.primary} />
+                  </View>
+                  <Text style={[styles.emptyTitle, { color: theme.text }]}>Empty Screen</Text>
+                  <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>
+                    Tap a component below to add it
+                  </Text>
+                </View>
+              ) : (
+                activeScreen?.components.map((comp, idx) => (
+                  <CanvasItem
+                    key={comp.id}
+                    component={comp}
+                    isSelected={comp.id === selectedComponentId}
+                    onSelect={() => setSelectedComponent(comp.id === selectedComponentId ? null : comp.id)}
+                    onMoveUp={() => moveComponentUp(comp.id)}
+                    onMoveDown={() => moveComponentDown(comp.id)}
+                    onDelete={() => removeComponent(comp.id)}
+                    onDuplicate={() => duplicateComponent(comp.id)}
+                    isFirst={idx === 0}
+                    isLast={idx === (activeScreen?.components.length ?? 0) - 1}
+                  />
+                ))
+              )}
             </View>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Empty Screen</Text>
-            <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>
-              Tap a component below to add it
-            </Text>
-          </View>
-        ) : (
-          activeScreen?.components.map((comp, idx) => (
-            <CanvasItem
-              key={comp.id}
-              component={comp}
-              isSelected={comp.id === selectedComponentId}
-              onSelect={() => setSelectedComponent(comp.id === selectedComponentId ? null : comp.id)}
-              onMoveUp={() => moveComponentUp(comp.id)}
-              onMoveDown={() => moveComponentDown(comp.id)}
-              onDelete={() => removeComponent(comp.id)}
-              onDuplicate={() => duplicateComponent(comp.id)}
-              isFirst={idx === 0}
-              isLast={idx === (activeScreen?.components.length ?? 0) - 1}
-            />
-          ))
-        )}
-        <View style={{ height: 24 }} />
-      </ScrollView>
+          </Animated.View>
+        </GestureDetector>
+      </GestureHandlerRootView>
+
+      {/* Fab Button */}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: AppColors.primary }]}
+        onPress={() => setShowPalette(true)}
+      >
+        <MaterialIcons name="add" size={28} color="#FFF" />
+      </TouchableOpacity>
 
       {/* Bottom Panel */}
-      {selectedComponent ? (
-        <PropertiesPanel
-          component={selectedComponent}
-          onUpdateProp={(key, value) => updateComponentProp(selectedComponent.id, key, value)}
-          onClose={() => setSelectedComponent(null)}
-          projectScreens={project.screens}
-        />
-      ) : (
-        <ComponentPalette onAddComponent={(type: UIComponentType) => addComponent(type)} />
-      )}
+      {
+        selectedComponent ? (
+          <PropertiesPanel
+            component={selectedComponent}
+            onUpdateProp={(key, value) => updateComponentProp(selectedComponent.id, key, value)}
+            onUpdateEvent={(ev, blockId) => updateComponentEvent(selectedComponent.id, ev, blockId)}
+            onClose={() => setSelectedComponent(null)}
+            projectScreens={project.screens}
+            availableLogicBlocks={project.logicBlocks ?? []}
+          />
+        ) : null
+      }
 
       <View style={{ height: insets.bottom + (Platform.OS === 'web' ? 34 : 0), backgroundColor: theme.surface }} />
 
-      <PreviewModal visible={showPreview} screen={activeScreen} onClose={() => setShowPreview(false)} />
+      <PreviewModal
+        visible={showPreview}
+        project={project}
+        initialScreenId={activeScreenId ?? ''}
+        onClose={() => setShowPreview(false)}
+      />
       <CodeModal visible={showCode} project={project} onClose={() => setShowCode(false)} />
+
+      <ComponentPalette
+        visible={showPalette}
+        onClose={() => setShowPalette(false)}
+        onAddComponent={(type: UIComponentType) => addComponent(type)}
+      />
 
       <ThemeEditor
         visible={showTheme}
@@ -240,9 +337,18 @@ export default function EditorScreen() {
         visible={showIntegrations}
         dataSources={project.dataSources ?? []}
         onClose={() => setShowIntegrations(false)}
-        onAdd={addDataSource}
+        onAdd={(ds: any) => addDataSource(ds)}
         onRemove={removeDataSource}
         onUpdate={updateDataSource}
+      />
+
+      <LogicEditor
+        visible={showLogic}
+        onClose={() => setShowLogic(false)}
+        blocks={project.logicBlocks ?? []}
+        onAddBlock={addLogicBlock}
+        onUpdateBlock={updateLogicBlock}
+        onRemoveBlock={removeLogicBlock}
       />
     </View>
   );
@@ -282,9 +388,35 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   topBtnText: { fontSize: 13, fontWeight: '700' },
+  canvasWrapper: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  canvasContainer: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
   canvasContent: { paddingVertical: 12, minHeight: 300 },
   emptyCanvas: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
   emptyCanvasIcon: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 20, fontWeight: '700' },
   emptyDesc: { fontSize: 14, textAlign: 'center' },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 100,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    zIndex: 100,
+  },
 });
